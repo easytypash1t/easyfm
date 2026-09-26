@@ -79,7 +79,7 @@
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 45;
             pointer-events: none;
-            background: radial-gradient(circle at 50vw 50vh, rgba(255,255,255,.055), transparent 18%), radial-gradient(circle at 50% 45%, transparent 12%, #000 105%);
+            background: radial-gradient(circle at 50% 45%, transparent 12%, #000 105%);
         }
 
         body::after {
@@ -1545,7 +1545,6 @@
             overlay.style.pointerEvents = 'none';
             setTimeout(() => { overlay.style.display = 'none'; }, 300);
 
-            showStreamStatus('CONNECTING TO LIVE...', 0);
 
             const startPlaying = () => {
                 const state = resolvePlayableState(getCurrentStreamState());
@@ -1671,7 +1670,7 @@
         // by the same directional "sun" below; reflections stay secondary.
         if ('physicallyCorrectLights' in renderer) renderer.physicallyCorrectLights = false;
         if (THREE.ACESFilmicToneMapping) renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = renderQuality === 'low' ? 0.92 : renderQuality === 'balanced' ? 0.96 : 1.0;
+        renderer.toneMappingExposure = renderQuality === 'low' ? 0.88 : renderQuality === 'balanced' ? 0.92 : 0.96;
 
         const pixelRatioCap = renderQuality === 'high' ? 1.15 : renderQuality === 'balanced' ? 1.0 : 0.85;
         const minimumPixelRatio = renderQuality === 'high' ? 0.82 : renderQuality === 'balanced' ? 0.76 : 0.68;
@@ -1713,7 +1712,7 @@
         const material = new THREE.MeshStandardMaterial({
             map: null,
             color: 0xffffff,
-            roughness: 0.76,
+            roughness: 0.82,
             metalness: 0.0,
             // No emissive/self-lighting: the texture is shaded by the shared sun.
             emissive: 0x000000,
@@ -1742,25 +1741,16 @@
         const globeMesh = new THREE.Mesh(geometry, material);
         scene.add(globeMesh);
 
-        // One shared key light for the Earth and the orbiting emblem. A directional
-        // light behaves like sunlight: every object receives light from the same angle.
-        const sunLight = new THREE.DirectionalLight(
-            0xffdfbf,
-            renderQuality === 'low' ? 1.90 : renderQuality === 'balanced' ? 2.10 : 2.28
+        // A single shared point source lights both the Earth and the orbiting logo.
+        // Neutral daylight avoids the old yellow cast without bleaching the texture.
+        const keyLight = new THREE.PointLight(
+            0xeaf2ff,
+            renderQuality === 'low' ? 2.65 : renderQuality === 'balanced' ? 2.90 : 3.15,
+            0,
+            2
         );
-        sunLight.position.set(5.4, 2.9, 6.4);
-        sunLight.target.position.set(0, 0, 0);
-        scene.add(sunLight);
-        scene.add(sunLight.target);
-
-        // Soft sky bounce only keeps the unlit hemisphere readable. It is deliberately
-        // blue-grey instead of white, so the globe stays natural rather than milky.
-        const nightFill = new THREE.HemisphereLight(
-            0x667785,
-            0x07090c,
-            renderQuality === 'low' ? 0.34 : renderQuality === 'balanced' ? 0.38 : 0.42
-        );
-        scene.add(nightFill);
+        keyLight.position.set(4.8, 3.0, 5.8);
+        scene.add(keyLight);
 
         const SP1DER_LOGO_ORIGINAL = 'https://i.hizliresim.com/cd44fi2l.png';
         const SP1DER_LOGO_ICON = 'https://i.hizliresim.com/texrnzfw.png';
@@ -1779,7 +1769,7 @@
         let orbitLogoRig = null;
         let orbitLogoBody = null;
         let orbitLogoAngle = -0.34;
-        const orbitLogoRadius = baseRadius + 0.15;
+        const orbitLogoRadius = baseRadius + 0.72;
 
         function createChromeEnvironmentMap() {
             const makeFace = (direction = 1, cool = false) => {
@@ -1874,140 +1864,78 @@
             if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
             texture.needsUpdate = true;
 
+            // Orbit rig rotates around the globe. The emblem itself sits away from the
+            // Earth's surface, so it cannot disappear inside the sphere as before.
             orbitLogoRig = new THREE.Group();
             orbitLogoRig.rotation.x = -0.08;
             orbitLogoRig.rotation.z = 0.035;
             scene.add(orbitLogoRig);
 
             orbitLogoBody = new THREE.Group();
-            orbitLogoBody.rotation.x = -0.05;
-            orbitLogoBody.rotation.y = 0;
-            orbitLogoBody.rotation.z = 0;
+            orbitLogoBody.position.set(0, 0, orbitLogoRadius);
+            orbitLogoBody.rotation.x = -0.04;
             orbitLogoRig.add(orbitLogoBody);
 
-            const qualityScale = renderQuality === 'low' ? 0.91 : renderQuality === 'balanced' ? 0.97 : 1.0;
-            const shellHeight = 1.02 * qualityScale;
-            const thetaLength = 1.36 * qualityScale;
-            const radialSegments = renderQuality === 'low' ? 96 : renderQuality === 'balanced' ? 144 : 192;
-            const depthLayers = renderQuality === 'low' ? 7 : renderQuality === 'balanced' ? 10 : 12;
-            const totalDepth = renderQuality === 'low' ? 0.032 : renderQuality === 'balanced' ? 0.038 : 0.043;
+            const qualityScale = renderQuality === 'low' ? 0.90 : renderQuality === 'balanced' ? 0.96 : 1.0;
+            const logoWidth = 1.42 * qualityScale;
+            const logoHeight = 1.42 * qualityScale;
+            const depth = renderQuality === 'low' ? 0.055 : 0.075;
+            const layers = renderQuality === 'low' ? 5 : renderQuality === 'balanced' ? 7 : 9;
+            const planeGeometry = new THREE.PlaneGeometry(logoWidth, logoHeight, 1, 1);
 
-            const frontMaterial = new THREE.MeshPhysicalMaterial({
+            const faceMaterial = new THREE.MeshPhysicalMaterial({
                 alphaMap: texture,
-                color: 0x697077,
-                metalness: 0.72,
-                roughness: 0.38,
+                color: 0xb8c0c7,
+                metalness: 0.88,
+                roughness: 0.24,
+                clearcoat: 0.28,
+                clearcoatRoughness: 0.18,
+                reflectivity: 0.72,
+                envMap: chromeEnvironmentMap,
+                envMapIntensity: renderQuality === 'low' ? 0.28 : 0.42,
+                alphaTest: 0.055,
+                transparent: false,
+                side: THREE.DoubleSide,
+                depthTest: true,
+                depthWrite: true
+            });
+
+            const edgeMaterial = new THREE.MeshPhysicalMaterial({
+                alphaMap: texture,
+                color: 0x59636c,
+                metalness: 0.82,
+                roughness: 0.34,
                 clearcoat: 0.16,
-                clearcoatRoughness: 0.28,
-                reflectivity: 0.46,
-                envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.10 : renderQuality === 'balanced' ? 0.14 : 0.17,
-                alphaTest: 0.035,
-                transparent: false,
-                side: THREE.DoubleSide,
-                depthTest: true,
-                depthWrite: true
-            });
-
-            const sideMaterial = new THREE.MeshPhysicalMaterial({
-                alphaMap: texture,
-                color: 0x343a40,
-                metalness: 0.68,
-                roughness: 0.50,
-                clearcoat: 0.08,
-                clearcoatRoughness: 0.34,
-                reflectivity: 0.40,
-                envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.07 : renderQuality === 'balanced' ? 0.10 : 0.12,
-                alphaTest: 0.035,
-                transparent: false,
-                side: THREE.DoubleSide,
-                depthTest: true,
-                depthWrite: true
-            });
-
-            const bevelMaterial = new THREE.MeshPhysicalMaterial({
-                alphaMap: texture,
-                color: 0x777f86,
-                metalness: 0.74,
-                roughness: 0.35,
-                clearcoat: 0.18,
                 clearcoatRoughness: 0.24,
-                reflectivity: 0.48,
+                reflectivity: 0.60,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.10 : renderQuality === 'balanced' ? 0.14 : 0.18,
-                alphaTest: 0.035,
+                envMapIntensity: renderQuality === 'low' ? 0.20 : 0.32,
+                alphaTest: 0.055,
                 transparent: false,
                 side: THREE.DoubleSide,
                 depthTest: true,
                 depthWrite: true
             });
 
-            const backMaterial = new THREE.MeshPhysicalMaterial({
-                alphaMap: texture,
-                color: 0x30363b,
-                metalness: 0.66,
-                roughness: 0.52,
-                clearcoat: 0.06,
-                clearcoatRoughness: 0.36,
-                envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.06 : 0.09,
-                alphaTest: 0.035,
-                transparent: false,
-                side: THREE.DoubleSide,
-                depthTest: true,
-                depthWrite: true
-            });
-
-            for (let i = depthLayers; i >= 1; i--) {
-                const p = i / depthLayers;
-                const layerRadius = orbitLogoRadius - p * totalDepth;
-                const layerHeight = shellHeight * (1.0 - p * 0.045);
-                const layerTheta = thetaLength * (1.0 - p * 0.030);
-                const g = createCurvedLogoGeometry(layerRadius, layerHeight, layerTheta, radialSegments);
-                const m = new THREE.Mesh(g, sideMaterial);
-                m.renderOrder = 1;
-                m.frustumCulled = false;
-                orbitLogoBody.add(m);
-            }
-            
-            const backGeometry = createCurvedLogoGeometry(
-                orbitLogoRadius - totalDepth - 0.004,
-                shellHeight * 0.955,
-                thetaLength * 0.968,
-                radialSegments
-            );
-            const back = new THREE.Mesh(backGeometry, backMaterial);
-            back.renderOrder = 1;
-            back.frustumCulled = false;
-            orbitLogoBody.add(back);
-
-            // Slim bevel lip: a restrained raised edge keeps the emblem metallic, not bulky.
-            const bevelSteps = 1;
-            for (let i = 0; i < bevelSteps; i++) {
-                const t = 0;
-                const r = orbitLogoRadius + 0.004;
-                const h = shellHeight * 1.004;
-                const th = thetaLength * 1.003;
-                const g = createCurvedLogoGeometry(r, h, th, radialSegments);
-                const m = new THREE.Mesh(g, bevelMaterial);
-                m.material = bevelMaterial;
-                m.renderOrder = 2;
-                m.frustumCulled = false;
-                orbitLogoBody.add(m);
+            // Stacked masked planes give the remote PNG real visible thickness while
+            // keeping the exact linked artwork and no local image dependency.
+            for (let i = 0; i < layers; i++) {
+                const t = layers === 1 ? 0 : i / (layers - 1);
+                const layer = new THREE.Mesh(planeGeometry.clone(), i === layers - 1 ? faceMaterial : edgeMaterial);
+                layer.position.z = (t - 0.5) * depth;
+                layer.renderOrder = 2 + i;
+                layer.frustumCulled = false;
+                orbitLogoBody.add(layer);
             }
 
-            // Main face.
-            const frontGeometry = createCurvedLogoGeometry(
-                orbitLogoRadius + 0.010,
-                shellHeight,
-                thetaLength,
-                radialSegments
-            );
-            const front = new THREE.Mesh(frontGeometry, frontMaterial);
-            front.renderOrder = 3;
-            front.frustumCulled = false;
-            orbitLogoBody.add(front);
+            // A second bright face on the rear keeps the emblem readable during the
+            // back half of its orbit when viewed around the Earth's edge.
+            const rear = new THREE.Mesh(planeGeometry.clone(), faceMaterial);
+            rear.position.z = -depth * 0.56;
+            rear.rotation.y = Math.PI;
+            rear.renderOrder = 2;
+            rear.frustumCulled = false;
+            orbitLogoBody.add(rear);
         }
 
         function decodeLogoBlob(blob) {
