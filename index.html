@@ -1783,131 +1783,215 @@
         orbitLogoRoot.add(orbitLogoSpin);
         scene.add(orbitLogoRoot);
 
-        const ORBIT_RADIUS = baseRadius + (renderQuality === 'low' ? 0.46 : renderQuality === 'balanced' ? 0.49 : 0.52);
-        const ORBIT_ARC = THREE.MathUtils.degToRad(renderQuality === 'low' ? 64 : renderQuality === 'balanced' ? 70 : 74);
-        const ORBIT_HEIGHT = renderQuality === 'low' ? 1.12 : renderQuality === 'balanced' ? 1.22 : 1.32;
-        const ORBIT_THICKNESS = renderQuality === 'low' ? 0.13 : renderQuality === 'balanced' ? 0.15 : 0.17;
-        const ORBIT_WIDTH_SEGMENTS = renderQuality === 'low' ? 32 : renderQuality === 'balanced' ? 44 : 56;
-        let orbitLogoFrontMaterial = null;
-        let orbitLogoShineMaterial = null;
+        const ORBIT_OUTER_RADIUS = baseRadius + (renderQuality === 'low' ? 0.17 : renderQuality === 'balanced' ? 0.19 : 0.21);
+        const ORBIT_THICKNESS = renderQuality === 'low' ? 0.095 : renderQuality === 'balanced' ? 0.11 : 0.125;
+        const ORBIT_ARC = THREE.MathUtils.degToRad(renderQuality === 'low' ? 60 : renderQuality === 'balanced' ? 64 : 68);
+        const ORBIT_HEIGHT = renderQuality === 'low' ? 1.18 : renderQuality === 'balanced' ? 1.28 : 1.36;
+        const ORBIT_GRID_WIDTH = renderQuality === 'low' ? 72 : renderQuality === 'balanced' ? 88 : 104;
         let orbitLogoMeshReady = false;
 
-        function createCurvedLogoGeometry(radius, arc, height, widthSegments) {
-            const positions = [];
-            const normals = [];
-            const uvs = [];
-            const indices = [];
-            const heightSegments = 3;
-
-            for (let yIndex = 0; yIndex <= heightSegments; yIndex++) {
-                const v = yIndex / heightSegments;
-                const y = height * 0.5 - v * height;
-
-                for (let xIndex = 0; xIndex <= widthSegments; xIndex++) {
-                    const u = xIndex / widthSegments;
-                    const angle = -arc * 0.5 + u * arc;
-                    const sin = Math.sin(angle);
-                    const cos = Math.cos(angle);
-                    positions.push(sin * radius, y, cos * radius);
-                    normals.push(sin, 0, cos);
-                    uvs.push(u, 1 - v);
-                }
+        function pushQuad(target, a, b, c, d, na, nb, nc, nd, uva, uvb, uvc, uvd, reverse = false) {
+            const verts = reverse ? [a, c, b, b, c, d] : [a, b, c, b, d, c];
+            const norms = reverse ? [na, nc, nb, nb, nc, nd] : [na, nb, nc, nb, nd, nc];
+            const uvList = reverse ? [uva, uvc, uvb, uvb, uvc, uvd] : [uva, uvb, uvc, uvb, uvd, uvc];
+            for (let i = 0; i < 6; i++) {
+                target.positions.push(verts[i][0], verts[i][1], verts[i][2]);
+                target.normals.push(norms[i][0], norms[i][1], norms[i][2]);
+                target.uvs.push(uvList[i][0], uvList[i][1]);
             }
-
-            const row = widthSegments + 1;
-            for (let yIndex = 0; yIndex < heightSegments; yIndex++) {
-                for (let xIndex = 0; xIndex < widthSegments; xIndex++) {
-                    const a = yIndex * row + xIndex;
-                    const b = a + 1;
-                    const c = a + row;
-                    const d = c + 1;
-                    indices.push(a, c, b, b, c, d);
-                }
-            }
-
-            const curvedGeometry = new THREE.BufferGeometry();
-            curvedGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-            curvedGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-            curvedGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-            curvedGeometry.setIndex(indices);
-            curvedGeometry.computeBoundingSphere();
-            return curvedGeometry;
         }
 
-        function buildCurvedOrbitLogo(texture) {
-            const logoGroup = new THREE.Group();
-            const backGeometry = createCurvedLogoGeometry(
-                ORBIT_RADIUS - ORBIT_THICKNESS,
-                ORBIT_ARC,
-                ORBIT_HEIGHT,
-                ORBIT_WIDTH_SEGMENTS
-            );
-            const backMaterial = new THREE.MeshPhysicalMaterial({
-                map: texture,
-                color: 0x222830,
-                alphaTest: 0.085,
-                transparent: false,
-                side: THREE.FrontSide,
-                depthTest: true,
-                depthWrite: true,
-                roughness: 0.70,
-                metalness: 0.08,
-                clearcoat: 0.12,
-                clearcoatRoughness: 0.55
-            });
-            const backMesh = new THREE.Mesh(backGeometry, backMaterial);
-            backMesh.frustumCulled = false;
-            backMesh.renderOrder = 1;
-            logoGroup.add(backMesh);
+        function pushSolidQuad(target, a, b, c, d, normal) {
+            const verts = [a, b, c, b, d, c];
+            for (let i = 0; i < 6; i++) {
+                target.positions.push(verts[i][0], verts[i][1], verts[i][2]);
+                target.normals.push(normal[0], normal[1], normal[2]);
+            }
+        }
 
-            const frontGeometry = createCurvedLogoGeometry(
-                ORBIT_RADIUS,
-                ORBIT_ARC,
-                ORBIT_HEIGHT,
-                ORBIT_WIDTH_SEGMENTS
-            );
-            orbitLogoFrontMaterial = new THREE.MeshPhysicalMaterial({
+        function makeGeometry(data, withUvs) {
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(data.positions, 3));
+            geo.setAttribute('normal', new THREE.Float32BufferAttribute(data.normals, 3));
+            if (withUvs) geo.setAttribute('uv', new THREE.Float32BufferAttribute(data.uvs, 2));
+            geo.computeBoundingSphere();
+            return geo;
+        }
+
+        function buildSolidCurvedOrbitLogo(texture) {
+            const image = texture.image;
+            const sourceCanvas = document.createElement('canvas');
+            sourceCanvas.width = image.naturalWidth || image.width || 512;
+            sourceCanvas.height = image.naturalHeight || image.height || 512;
+            const sourceCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+            sourceCtx.drawImage(image, 0, 0, sourceCanvas.width, sourceCanvas.height);
+            const sourcePixels = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height).data;
+
+            let minX = sourceCanvas.width;
+            let minY = sourceCanvas.height;
+            let maxX = -1;
+            let maxY = -1;
+            const alphaThreshold = 20;
+            for (let y = 0; y < sourceCanvas.height; y++) {
+                for (let x = 0; x < sourceCanvas.width; x++) {
+                    if (sourcePixels[(y * sourceCanvas.width + x) * 4 + 3] > alphaThreshold) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+
+            if (maxX < minX || maxY < minY) return;
+
+            const pad = 3;
+            minX = Math.max(0, minX - pad);
+            minY = Math.max(0, minY - pad);
+            maxX = Math.min(sourceCanvas.width - 1, maxX + pad);
+            maxY = Math.min(sourceCanvas.height - 1, maxY + pad);
+            const cropW = maxX - minX + 1;
+            const cropH = maxY - minY + 1;
+            const gridW = ORBIT_GRID_WIDTH;
+            const gridH = Math.max(42, Math.round(gridW * cropH / cropW));
+
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = gridW;
+            maskCanvas.height = gridH;
+            const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
+            maskCtx.clearRect(0, 0, gridW, gridH);
+            maskCtx.drawImage(sourceCanvas, minX, minY, cropW, cropH, 0, 0, gridW, gridH);
+            const maskPixels = maskCtx.getImageData(0, 0, gridW, gridH).data;
+            const mask = new Uint8Array(gridW * gridH);
+            for (let y = 0; y < gridH; y++) {
+                for (let x = 0; x < gridW; x++) {
+                    mask[y * gridW + x] = maskPixels[(y * gridW + x) * 4 + 3] > 28 ? 1 : 0;
+                }
+            }
+
+            const front = { positions: [], normals: [], uvs: [] };
+            const back = { positions: [], normals: [], uvs: [] };
+            const sides = { positions: [], normals: [] };
+            const innerRadius = ORBIT_OUTER_RADIUS - ORBIT_THICKNESS;
+            const visualHeight = ORBIT_HEIGHT * (cropH / cropW) / 0.84;
+            const halfHeight = visualHeight * 0.5;
+
+            const point = (gx, gy, radius) => {
+                const u = gx / gridW;
+                const v = gy / gridH;
+                const angle = -ORBIT_ARC * 0.5 + u * ORBIT_ARC;
+                const y = halfHeight - v * visualHeight;
+                return [Math.sin(angle) * radius, y, Math.cos(angle) * radius];
+            };
+
+            const radialNormal = (gx, outward) => {
+                const angle = -ORBIT_ARC * 0.5 + (gx / gridW) * ORBIT_ARC;
+                const sign = outward ? 1 : -1;
+                return [Math.sin(angle) * sign, 0, Math.cos(angle) * sign];
+            };
+
+            const uv = (gx, gy) => [
+                (minX + (gx / gridW) * cropW) / sourceCanvas.width,
+                1 - (minY + (gy / gridH) * cropH) / sourceCanvas.height
+            ];
+
+            const isSolid = (x, y) => x >= 0 && x < gridW && y >= 0 && y < gridH && mask[y * gridW + x] === 1;
+
+            for (let y = 0; y < gridH; y++) {
+                for (let x = 0; x < gridW; x++) {
+                    if (!isSolid(x, y)) continue;
+
+                    const p00 = point(x, y, ORBIT_OUTER_RADIUS);
+                    const p10 = point(x + 1, y, ORBIT_OUTER_RADIUS);
+                    const p01 = point(x, y + 1, ORBIT_OUTER_RADIUS);
+                    const p11 = point(x + 1, y + 1, ORBIT_OUTER_RADIUS);
+                    const n0 = radialNormal(x, true);
+                    const n1 = radialNormal(x + 1, true);
+                    const t00 = uv(x, y);
+                    const t10 = uv(x + 1, y);
+                    const t01 = uv(x, y + 1);
+                    const t11 = uv(x + 1, y + 1);
+                    pushQuad(front, p00, p10, p01, p11, n0, n1, n0, n1, t00, t10, t01, t11, true);
+
+                    const b00 = point(x, y, innerRadius);
+                    const b10 = point(x + 1, y, innerRadius);
+                    const b01 = point(x, y + 1, innerRadius);
+                    const b11 = point(x + 1, y + 1, innerRadius);
+                    const bn0 = radialNormal(x, false);
+                    const bn1 = radialNormal(x + 1, false);
+                    pushQuad(back, b00, b10, b01, b11, bn0, bn1, bn0, bn1, t00, t10, t01, t11, false);
+
+                    if (!isSolid(x - 1, y)) {
+                        const angle = -ORBIT_ARC * 0.5 + (x / gridW) * ORBIT_ARC;
+                        const normal = [-Math.cos(angle), 0, Math.sin(angle)];
+                        pushSolidQuad(sides, b00, p00, b01, p01, normal);
+                    }
+                    if (!isSolid(x + 1, y)) {
+                        const angle = -ORBIT_ARC * 0.5 + ((x + 1) / gridW) * ORBIT_ARC;
+                        const normal = [Math.cos(angle), 0, -Math.sin(angle)];
+                        pushSolidQuad(sides, p10, b10, p11, b11, normal);
+                    }
+                    if (!isSolid(x, y - 1)) {
+                        pushSolidQuad(sides, b00, b10, p00, p10, [0, 1, 0]);
+                    }
+                    if (!isSolid(x, y + 1)) {
+                        pushSolidQuad(sides, p01, p11, b01, b11, [0, -1, 0]);
+                    }
+                }
+            }
+
+            const frontGeometry = makeGeometry(front, true);
+            const backGeometry = makeGeometry(back, true);
+            const sideGeometry = makeGeometry(sides, false);
+
+            const frontMaterial = new THREE.MeshPhysicalMaterial({
                 map: texture,
                 color: 0xffffff,
-                alphaTest: 0.085,
-                transparent: false,
-                side: THREE.FrontSide,
+                transparent: true,
+                alphaTest: 0.025,
                 depthTest: true,
                 depthWrite: true,
-                roughness: 0.12,
-                metalness: 0.24,
+                side: THREE.FrontSide,
+                roughness: 0.20,
+                metalness: 0.18,
                 clearcoat: 1.0,
-                clearcoatRoughness: 0.025,
+                clearcoatRoughness: 0.07,
                 reflectivity: 1.0
             });
-            const frontMesh = new THREE.Mesh(frontGeometry, orbitLogoFrontMaterial);
-            frontMesh.frustumCulled = false;
-            frontMesh.renderOrder = 2;
-            logoGroup.add(frontMesh);
 
-            const shineGeometry = createCurvedLogoGeometry(
-                ORBIT_RADIUS + 0.007,
-                ORBIT_ARC,
-                ORBIT_HEIGHT * 1.002,
-                ORBIT_WIDTH_SEGMENTS
-            );
-            orbitLogoShineMaterial = new THREE.MeshBasicMaterial({
-                map: texture,
-                color: 0xffffff,
-                alphaTest: 0.085,
-                transparent: true,
-                opacity: 0.09,
-                side: THREE.FrontSide,
+            const backMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0x4a515a,
                 depthTest: true,
-                depthWrite: false,
-                blending: THREE.AdditiveBlending
+                depthWrite: true,
+                side: THREE.FrontSide,
+                roughness: 0.38,
+                metalness: 0.42,
+                clearcoat: 0.30,
+                clearcoatRoughness: 0.28
             });
-            const shineMesh = new THREE.Mesh(shineGeometry, orbitLogoShineMaterial);
-            shineMesh.frustumCulled = false;
-            shineMesh.renderOrder = 20;
-            logoGroup.add(shineMesh);
 
-            orbitLogoSpin.add(logoGroup);
+            const sideMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0x5e6670,
+                depthTest: true,
+                depthWrite: true,
+                side: THREE.DoubleSide,
+                roughness: 0.32,
+                metalness: 0.48,
+                clearcoat: 0.42,
+                clearcoatRoughness: 0.22,
+                flatShading: true
+            });
+
+            const sideMesh = new THREE.Mesh(sideGeometry, sideMaterial);
+            const backMesh = new THREE.Mesh(backGeometry, backMaterial);
+            const frontMesh = new THREE.Mesh(frontGeometry, frontMaterial);
+            sideMesh.frustumCulled = false;
+            backMesh.frustumCulled = false;
+            frontMesh.frustumCulled = false;
+            sideMesh.renderOrder = 1;
+            backMesh.renderOrder = 1;
+            frontMesh.renderOrder = 2;
+            orbitLogoSpin.add(sideMesh, backMesh, frontMesh);
             orbitLogoSpin.rotation.y = 0;
             orbitLogoMeshReady = true;
         }
@@ -1922,7 +2006,7 @@
                 texture.magFilter = THREE.LinearFilter;
                 if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
                 texture.needsUpdate = true;
-                buildCurvedOrbitLogo(texture);
+                buildSolidCurvedOrbitLogo(texture);
             },
             undefined,
             () => console.error('Orbit logo texture failed:', './assets/logo-512.png')
@@ -1938,12 +2022,6 @@
         keyLight.position.copy(SHARED_LIGHT_POSITION);
         scene.add(keyLight);
 
-        const orbitCenterVector = new THREE.Vector3();
-        const orbitNormalVector = new THREE.Vector3();
-        const orbitLightVector = new THREE.Vector3();
-        const orbitViewVector = new THREE.Vector3();
-        const orbitHalfVector = new THREE.Vector3();
-        const orbitYAxis = new THREE.Vector3(0, 1, 0);
 
         let lastTime = performance.now();
         let lastRenderTime = lastTime;
@@ -1987,27 +2065,9 @@
 
             const globeSpeed = isPlayingState ? 0.52 : 0.13;
             globeMesh.rotation.y += globeSpeed * deltaTime;
-            const orbitSpeed = isPlayingState ? 0.54 : 0.18;
             if (orbitLogoMeshReady) {
+                const orbitSpeed = isPlayingState ? 0.54 : 0.18;
                 orbitLogoSpin.rotation.y += orbitSpeed * deltaTime;
-
-                orbitCenterVector.set(0, 0, ORBIT_RADIUS)
-                    .applyAxisAngle(orbitYAxis, orbitLogoSpin.rotation.y);
-                orbitNormalVector.copy(orbitCenterVector).normalize();
-                orbitLightVector.copy(SHARED_LIGHT_POSITION).sub(orbitCenterVector).normalize();
-                orbitViewVector.copy(camera.position).sub(orbitCenterVector).normalize();
-                orbitHalfVector.copy(orbitLightVector).add(orbitViewVector).normalize();
-
-                const diffuseLight = Math.max(0, orbitNormalVector.dot(orbitLightVector));
-                const specular = Math.pow(Math.max(0, orbitNormalVector.dot(orbitHalfVector)), 14);
-
-                if (orbitLogoShineMaterial) {
-                    orbitLogoShineMaterial.opacity = Math.min(0.62, 0.07 + diffuseLight * 0.08 + specular * 0.50);
-                }
-                if (orbitLogoFrontMaterial) {
-                    orbitLogoFrontMaterial.roughness = Math.max(0.045, 0.14 - specular * 0.085);
-                    orbitLogoFrontMaterial.clearcoatRoughness = Math.max(0.012, 0.032 - specular * 0.018);
-                }
             }
 
             animatePhotoWebs(deltaTime);
