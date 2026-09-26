@@ -22,7 +22,6 @@
     <meta property="og:image:width" content="512">
     <meta property="og:image:height" content="512">
     <meta property="og:image:alt" content="SP1DER">
-    <!-- X still reads the legacy twitter:* card metadata names. -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="SP1DER">
     <meta name="twitter:description" content="SP1DER live music stream.">
@@ -212,7 +211,34 @@
         #globe-3d-container canvas {
             display: block;
             outline: none;
+            position: relative;
+            z-index: 2;
             filter: drop-shadow(0 0 26px rgba(255,255,255,.22)) drop-shadow(0 0 70px rgba(120,160,255,.10));
+        }
+
+        /* Browser-safe fallback for the orbiting logo. This is only shown when
+           the remote PNG cannot be promoted to a WebGL texture (for example
+           because the image host blocks cross-origin texture access). */
+        .orbit-logo-fallback {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: clamp(78px, 25%, 145px);
+            height: auto;
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-drag: none;
+            transform-origin: 50% 50%;
+            opacity: 0;
+            visibility: hidden;
+            will-change: transform, opacity;
+            filter: drop-shadow(0 4px 10px rgba(0,0,0,.55)) drop-shadow(0 0 10px rgba(255,255,255,.10));
+            transition: opacity .18s ease;
+        }
+
+        .orbit-logo-fallback.is-visible {
+            opacity: .98;
+            visibility: visible;
         }
 
         .status-bar {
@@ -1763,6 +1789,60 @@
         let orbitLogoAngle = 0;
         const orbitLogoRadius = baseRadius + 0.38;
 
+        // Keep a normal <img> fallback ready. A regular image can still be shown
+        // even when the same remote PNG is rejected as a cross-origin WebGL texture.
+        const orbitLogoFallback = document.createElement('img');
+        orbitLogoFallback.className = 'orbit-logo-fallback';
+        orbitLogoFallback.src = SP1DER_LOGO_TEXTURES[0];
+        orbitLogoFallback.alt = '';
+        orbitLogoFallback.decoding = 'async';
+        orbitLogoFallback.draggable = false;
+        orbitLogoFallback.setAttribute('aria-hidden', 'true');
+        globeContainer.appendChild(orbitLogoFallback);
+
+        let orbitLogoFallbackActive = false;
+        function showOrbitLogoFallback() {
+            if (orbitLogoBody) return;
+            orbitLogoFallbackActive = true;
+            orbitLogoFallback.classList.add('is-visible');
+        }
+
+        function hideOrbitLogoFallback() {
+            orbitLogoFallbackActive = false;
+            orbitLogoFallback.classList.remove('is-visible');
+        }
+
+        function updateOrbitLogoFallback() {
+            if (!orbitLogoFallbackActive) return;
+
+            const h = globeContainer.clientHeight || 300;
+            const orbitX = h * (window.innerWidth <= 600 ? 0.40 : 0.455);
+            const orbitY = h * 0.055;
+            const phase = orbitLogoAngle;
+            const depth = Math.cos(phase);
+            const x = Math.sin(phase) * orbitX;
+            const y = Math.sin(phase * 0.72) * orbitY;
+            const scale = 0.78 + (depth + 1) * 0.12;
+            const tilt = -Math.sin(phase) * 46;
+            const roll = Math.sin(phase * 0.63) * 7;
+
+            // Behind the Earth: canvas is above the image, so the globe naturally
+            // occludes the middle of the logo. In front: raise it above the canvas.
+            orbitLogoFallback.style.zIndex = depth >= 0 ? '3' : '1';
+            orbitLogoFallback.style.opacity = depth >= 0 ? '.98' : '.72';
+            orbitLogoFallback.style.transform =
+                `translate3d(calc(-50% + ${x.toFixed(2)}px), calc(-50% + ${y.toFixed(2)}px), 0) ` +
+                `perspective(700px) rotateY(${tilt.toFixed(2)}deg) rotateZ(${roll.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
+        }
+
+        orbitLogoFallback.addEventListener('load', () => {
+            // If WebGL has not produced the logo shortly after the image itself is
+            // available, use the fallback instead of leaving the orbit empty.
+            window.setTimeout(() => {
+                if (!orbitLogoBody) showOrbitLogoFallback();
+            }, 900);
+        }, { once: true });
+
         function createChromeEnvironmentMap() {
             const makeFace = (direction = 1, cool = false) => {
                 const canvas = document.createElement('canvas');
@@ -2010,13 +2090,24 @@
             logoLoader.setCrossOrigin('anonymous');
             logoLoader.load(
                 urls[index],
-                (texture) => buildOrbitLogo(texture),
+                (texture) => {
+                    buildOrbitLogo(texture);
+                    hideOrbitLogoFallback();
+                },
                 undefined,
-                () => loadOrbitLogoTexture(urls, index + 1)
+                () => {
+                    if (index + 1 >= urls.length) showOrbitLogoFallback();
+                    loadOrbitLogoTexture(urls, index + 1);
+                }
             );
         }
 
         loadOrbitLogoTexture(SP1DER_LOGO_TEXTURES);
+        // Last-resort guard for browsers that neither complete nor error the WebGL
+        // image request promptly. The logo must never disappear completely.
+        window.setTimeout(() => {
+            if (!orbitLogoBody) showOrbitLogoFallback();
+        }, 2600);
 
         let lastTime = performance.now();
         let lastRenderTime = lastTime;
@@ -2062,8 +2153,9 @@
             const logoOrbitSpeed = isPlayingState ? 0.56 : 0.16;
             globeMesh.rotation.y += globeSpeed * deltaTime;
 
+            orbitLogoAngle -= logoOrbitSpeed * deltaTime;
+
             if (orbitLogoRig && orbitLogoBody) {
-                orbitLogoAngle -= logoOrbitSpeed * deltaTime;
                 orbitLogoRig.rotation.y = orbitLogoAngle;
                 orbitLogoRig.rotation.x = -0.18 + Math.sin(orbitLogoAngle * 0.34) * 0.022;
                 orbitLogoRig.rotation.z = 0.09 + Math.cos(orbitLogoAngle * 0.27) * 0.016;
@@ -2072,9 +2164,9 @@
                 orbitLogoBody.rotation.y = Math.sin(orbitLogoAngle * 0.52) * 0.055;
                 orbitLogoBody.rotation.x = -0.08 + Math.cos(orbitLogoAngle * 0.72) * 0.040;
                 orbitLogoBody.rotation.z = Math.sin(orbitLogoAngle * 0.61) * 0.028;
-
             }
 
+            updateOrbitLogoFallback();
             animatePhotoWebs(deltaTime);
             renderer.render(scene, camera);
         }
