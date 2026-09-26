@@ -215,8 +215,8 @@
             filter: drop-shadow(0 0 18px rgba(214,226,242,.10)) drop-shadow(0 0 44px rgba(90,120,155,.055));
         }
 
-        /* Curved PNG orbit: exact Hızlıresim artwork. The strips overlap slightly
-           to remove hairline seams, while multiple rear layers create real visual depth. */
+        /* Clean 3D PNG orbit. The logo artwork itself stays one continuous PNG.
+           Depth is built from whole-logo silhouettes, never per-slice bars. */
         .orbit-logo-layer {
             position: absolute;
             inset: 0;
@@ -228,62 +228,97 @@
         #orbit-logo-back { z-index: 1; }
         #orbit-logo-front { z-index: 3; }
 
-        .orbit-logo-slice {
+        .orbit-logo-object {
             position: absolute;
             left: 0;
             top: 0;
             transform-origin: 50% 50%;
             transform-style: preserve-3d;
-            overflow: visible;
-            will-change: transform, width, height;
             pointer-events: none;
+            will-change: transform, width, height, filter;
             isolation: isolate;
+            perspective: 900px;
         }
 
-        .orbit-logo-face,
-        .orbit-logo-depth,
-        .orbit-logo-shine {
+        .orbit-logo-depth-stack,
+        .orbit-logo-face-stage,
+        .orbit-logo-reflection {
             position: absolute;
-            inset: -0.75px;
-            background-repeat: no-repeat;
-            background-color: transparent;
+            inset: 0;
             pointer-events: none;
+        }
+
+        .orbit-logo-depth-img,
+        .orbit-logo-face-img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center;
+            pointer-events: none;
+            -webkit-user-drag: none;
+            user-select: none;
             backface-visibility: hidden;
             -webkit-backface-visibility: hidden;
         }
 
-        .orbit-logo-depth {
-            z-index: 0;
-            opacity: .96;
-            filter: brightness(.14) saturate(.62) contrast(1.38);
+        /* Whole-silhouette extrusion: no vertical striping can be produced here. */
+        .orbit-logo-depth-img {
+            filter: brightness(.12) saturate(.72) contrast(1.35);
+            opacity: .88;
+            transform-origin: 50% 50%;
         }
 
-        .orbit-logo-face {
-            z-index: 10;
-            transform: translateZ(2px);
-            filter: contrast(1.08) saturate(.96);
+        .orbit-logo-face-stage {
+            z-index: 30;
+            transform-style: preserve-3d;
         }
 
-        .orbit-logo-shine {
-            z-index: 12;
-            background: linear-gradient(108deg,
-                rgba(255,255,255,0) 0%,
-                rgba(174,205,236,.08) 20%,
-                rgba(225,240,255,.34) 38%,
-                rgba(255,255,255,.98) 50%,
-                rgba(205,229,252,.30) 62%,
-                rgba(255,255,255,0) 100%);
+        /* Five broad, overlapping face regions only bend the FRONT surface.
+           Their overlap removes anti-alias seams; depth never gets segmented. */
+        .orbit-logo-face-img {
+            z-index: 31;
+            filter: brightness(var(--logo-brightness, .92)) contrast(1.10) saturate(.96)
+                    drop-shadow(0 0 var(--logo-glow, 4px) rgba(215,232,250,var(--logo-glow-alpha,.16)));
+            transform-origin: var(--panel-origin, 50%) 50%;
+        }
+        .orbit-logo-face-img.p0 { clip-path: inset(0 77.5% 0 0);        transform: translateZ(1px) rotateY(17deg);  --panel-origin: 11%; }
+        .orbit-logo-face-img.p1 { clip-path: inset(0 57.5% 0 18.5%);    transform: translateZ(6px) rotateY(8deg);   --panel-origin: 30%; }
+        .orbit-logo-face-img.p2 { clip-path: inset(0 37.5% 0 37.5%);    transform: translateZ(10px) rotateY(0deg);  --panel-origin: 50%; }
+        .orbit-logo-face-img.p3 { clip-path: inset(0 18.5% 0 57.5%);    transform: translateZ(6px) rotateY(-8deg);  --panel-origin: 70%; }
+        .orbit-logo-face-img.p4 { clip-path: inset(0 0 0 77.5%);        transform: translateZ(1px) rotateY(-17deg); --panel-origin: 89%; }
+
+        .orbit-logo-reflection {
+            z-index: 45;
+            opacity: var(--shine-opacity, .12);
+            background:
+                radial-gradient(circle at var(--shine-x, 62%) var(--shine-y, 35%),
+                    rgba(255,255,255,.98) 0%,
+                    rgba(224,239,255,.72) 8%,
+                    rgba(173,205,236,.24) 22%,
+                    rgba(255,255,255,0) 48%),
+                linear-gradient(112deg,
+                    rgba(255,255,255,0) 22%,
+                    rgba(194,221,247,.11) 39%,
+                    rgba(255,255,255,.48) 49%,
+                    rgba(187,216,244,.10) 61%,
+                    rgba(255,255,255,0) 78%);
             mix-blend-mode: screen;
-            opacity: 0;
-            transform: translateZ(4px);
+            filter: blur(.35px);
+            -webkit-mask-image: url("https://i.hizliresim.com/cd44fi2l.png");
+            mask-image: url("https://i.hizliresim.com/cd44fi2l.png");
             -webkit-mask-repeat: no-repeat;
             mask-repeat: no-repeat;
-            -webkit-mask-size: 100% 100%;
-            mask-size: 100% 100%;
-            will-change: opacity, filter, transform;
+            -webkit-mask-size: contain;
+            mask-size: contain;
+            -webkit-mask-position: center;
+            mask-position: center;
+            transform: translateZ(13px);
+            will-change: opacity, background-position;
         }
 
-        html[data-quality="low"] .orbit-logo-depth.depth-extra { display: none; }
+        html[data-quality="low"] .orbit-logo-depth-img.depth-extra { display: none; }
 
         .status-bar {
             display: flex;
@@ -1874,18 +1909,16 @@
         keyLight.position.copy(SHARED_LIGHT_POSITION);
         scene.add(keyLight);
 
-        // --- CURVED / REFLECTIVE PNG SP1DER ORBIT ---
-        // The visible emblem is ALWAYS the user's exact Hızlıresim PNG. It stays a
-        // normal browser image/background (no WebGL/CORS dependency), while overlapping
-        // curved slices + depth layers give it a smooth 3D shell around Earth.
+        // --- CLEAN 3D / REFLECTIVE PNG SP1DER ORBIT ---
+        // The original Hızlıresim PNG stays visually intact. There are NO narrow slices.
+        // Whole-logo depth clones create thickness; five broad overlapping face regions
+        // only add a gentle cylindrical bend to the front surface.
         const SP1DER_LOGO_URL = 'https://i.hizliresim.com/cd44fi2l.png';
-        const ORBIT_LOGO_SLICE_COUNT = renderQuality === 'low' ? 12 : renderQuality === 'balanced' ? 14 : 16;
-        const ORBIT_LOGO_ARC = THREE.MathUtils.degToRad(92);
-        const ORBIT_LOGO_RADIUS = 1.98;
-        const ORBIT_LOGO_HEIGHT = window.innerWidth <= 600 ? 1.56 : 1.74;
-        const ORBIT_TILT_X = THREE.MathUtils.degToRad(7.0);
-        const ORBIT_TILT_Z = THREE.MathUtils.degToRad(-7.0);
-        const ORBIT_DEPTH_LAYERS = renderQuality === 'low' ? 6 : renderQuality === 'balanced' ? 8 : 10;
+        const ORBIT_LOGO_RADIUS = 1.86;
+        const ORBIT_LOGO_WORLD_WIDTH = window.innerWidth <= 600 ? 3.18 : 3.42;
+        const ORBIT_TILT_X = THREE.MathUtils.degToRad(4.5);
+        const ORBIT_TILT_Z = THREE.MathUtils.degToRad(-6.0);
+        const ORBIT_DEPTH_LAYERS = renderQuality === 'low' ? 5 : renderQuality === 'balanced' ? 7 : 9;
 
         const orbitLogoBack = document.createElement('div');
         orbitLogoBack.id = 'orbit-logo-back';
@@ -1896,74 +1929,71 @@
         globeContainer.insertBefore(orbitLogoBack, renderer.domElement);
         globeContainer.appendChild(orbitLogoFront);
 
-        const orbitLogoSlices = [];
-        let orbitLogoAngle = -0.10;
+        const orbitLogoObject = document.createElement('div');
+        orbitLogoObject.className = 'orbit-logo-object';
+        orbitLogoObject.setAttribute('aria-hidden', 'true');
+
+        const orbitLogoDepthStack = document.createElement('div');
+        orbitLogoDepthStack.className = 'orbit-logo-depth-stack';
+        const orbitLogoDepthImages = [];
+        for (let i = 0; i < ORBIT_DEPTH_LAYERS; i++) {
+            const img = document.createElement('img');
+            img.className = 'orbit-logo-depth-img' + (i >= 5 ? ' depth-extra' : '');
+            img.src = SP1DER_LOGO_URL;
+            img.alt = '';
+            img.decoding = 'async';
+            img.draggable = false;
+            orbitLogoDepthStack.appendChild(img);
+            orbitLogoDepthImages.push(img);
+        }
+
+        const orbitLogoFaceStage = document.createElement('div');
+        orbitLogoFaceStage.className = 'orbit-logo-face-stage';
+        for (let i = 0; i < 5; i++) {
+            const img = document.createElement('img');
+            img.className = `orbit-logo-face-img p${i}`;
+            img.src = SP1DER_LOGO_URL;
+            img.alt = '';
+            img.decoding = 'async';
+            img.draggable = false;
+            orbitLogoFaceStage.appendChild(img);
+        }
+
+        const orbitLogoReflection = document.createElement('div');
+        orbitLogoReflection.className = 'orbit-logo-reflection';
+
+        orbitLogoObject.appendChild(orbitLogoDepthStack);
+        orbitLogoObject.appendChild(orbitLogoFaceStage);
+        orbitLogoObject.appendChild(orbitLogoReflection);
+        orbitLogoBack.appendChild(orbitLogoObject);
+
+        let orbitLogoAngle = -0.06;
         let orbitLogoImageReady = false;
+        let orbitLogoAspect = 2.85;
 
-        function applyLogoArtwork(el, index) {
-            const bgPos = ORBIT_LOGO_SLICE_COUNT <= 1 ? 50 : (index / (ORBIT_LOGO_SLICE_COUNT - 1)) * 100;
-            el.style.backgroundImage = `url("${SP1DER_LOGO_URL}")`;
-            el.style.backgroundSize = `${ORBIT_LOGO_SLICE_COUNT * 100}% 100%`;
-            el.style.backgroundPosition = `${bgPos}% 50%`;
-        }
-
-        function makeLogoSlice(index) {
-            const slice = document.createElement('div');
-            slice.className = 'orbit-logo-slice';
-            slice.setAttribute('aria-hidden', 'true');
-
-            const depths = [];
-            for (let d = 0; d < ORBIT_DEPTH_LAYERS; d++) {
-                const depth = document.createElement('div');
-                depth.className = 'orbit-logo-depth' + (d >= 4 ? ' depth-extra' : '');
-                applyLogoArtwork(depth, index);
-                depth.style.zIndex = String(d + 1);
-                slice.appendChild(depth);
-                depths.push(depth);
-            }
-
-            const face = document.createElement('div');
-            face.className = 'orbit-logo-face';
-            applyLogoArtwork(face, index);
-            slice.appendChild(face);
-
-            const shine = document.createElement('div');
-            shine.className = 'orbit-logo-shine';
-            shine.style.webkitMaskImage = `url("${SP1DER_LOGO_URL}")`;
-            shine.style.maskImage = `url("${SP1DER_LOGO_URL}")`;
-            shine.style.webkitMaskSize = `${ORBIT_LOGO_SLICE_COUNT * 100}% 100%`;
-            shine.style.maskSize = `${ORBIT_LOGO_SLICE_COUNT * 100}% 100%`;
-            const bgPos = ORBIT_LOGO_SLICE_COUNT <= 1 ? 50 : (index / (ORBIT_LOGO_SLICE_COUNT - 1)) * 100;
-            shine.style.webkitMaskPosition = `${bgPos}% 50%`;
-            shine.style.maskPosition = `${bgPos}% 50%`;
-            slice.appendChild(shine);
-
-            orbitLogoBack.appendChild(slice);
-            const item = { slice, depths, face, shine, index };
-            orbitLogoSlices.push(item);
-        }
-
-        for (let i = 0; i < ORBIT_LOGO_SLICE_COUNT; i++) makeLogoSlice(i);
-
-        // Direct <img> preload = the same reliable path that made v41 visible.
+        // Normal <img> loading keeps the proven Hızlıresim path. No CORS/WebGL texture dependency.
         const orbitLogoPreload = new Image();
         orbitLogoPreload.decoding = 'async';
         orbitLogoPreload.onload = () => {
+            if (orbitLogoPreload.naturalWidth > 0 && orbitLogoPreload.naturalHeight > 0) {
+                orbitLogoAspect = orbitLogoPreload.naturalWidth / orbitLogoPreload.naturalHeight;
+            }
             orbitLogoImageReady = true;
-            orbitLogoSlices.forEach(({ slice }) => { slice.style.visibility = 'visible'; });
+            orbitLogoObject.style.visibility = 'visible';
         };
         orbitLogoPreload.onerror = () => {
             orbitLogoImageReady = false;
+            orbitLogoObject.style.visibility = 'hidden';
             console.warn('SP1DER Hızlıresim PNG could not be loaded:', SP1DER_LOGO_URL);
         };
-        orbitLogoSlices.forEach(({ slice }) => { slice.style.visibility = 'hidden'; });
+        orbitLogoObject.style.visibility = 'hidden';
         orbitLogoPreload.src = SP1DER_LOGO_URL;
 
         const orbitPlaneEuler = new THREE.Euler(ORBIT_TILT_X, 0, ORBIT_TILT_Z, 'XYZ');
-        const orbitUp = new THREE.Vector3(0, 1, 0).applyEuler(orbitPlaneEuler).normalize();
         const tmpProject = new THREE.Vector3();
         const globeCenterWorld = new THREE.Vector3(0, 0, 0);
-        const tmpLightWorld = SHARED_LIGHT_POSITION.clone();
+        const cameraRightWorld = new THREE.Vector3(1, 0, 0);
+        const cameraUpWorld = new THREE.Vector3(0, 1, 0);
 
         function projectWorldToLogoPixels(world, width, height) {
             tmpProject.copy(world).project(camera);
@@ -1973,19 +2003,14 @@
             };
         }
 
-        function orbitalPoint(theta, y = 0, radius = ORBIT_LOGO_RADIUS) {
+        function orbitalPoint(theta, radius = ORBIT_LOGO_RADIUS) {
             const point = new THREE.Vector3(
                 Math.sin(theta) * radius,
-                y,
+                0,
                 Math.cos(theta) * radius
             );
             point.applyEuler(orbitPlaneEuler);
             return point;
-        }
-
-        function smoothStep(edge0, edge1, x) {
-            const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0 || 1)));
-            return t * t * (3 - 2 * t);
         }
 
         function updateOrbitLogo(deltaTime) {
@@ -1994,95 +2019,82 @@
             const height = globeContainer.clientHeight;
             if (!width || !height) return;
 
-            const speed = isPlayingState ? 0.34 : 0.19;
+            const speed = isPlayingState ? 0.31 : 0.17;
             orbitLogoAngle = (orbitLogoAngle + speed * deltaTime) % (Math.PI * 2);
             camera.updateMatrixWorld();
 
-            const centerScreen = projectWorldToLogoPixels(globeCenterWorld, width, height);
-            const lightScreen = projectWorldToLogoPixels(tmpLightWorld, width, height);
-            const halfStep = ORBIT_LOGO_ARC / ORBIT_LOGO_SLICE_COUNT * 0.58;
-            const halfHeight = ORBIT_LOGO_HEIGHT * 0.5;
+            // Exact orbit center: the logo revolves around the Earth's world-space origin.
+            const center = orbitalPoint(orbitLogoAngle);
+            const pc = projectWorldToLogoPixels(center, width, height);
+
+            // Project a world-space width at the logo's actual depth, keeping size natural
+            // as the orbit moves toward/away from the camera.
+            const halfWorldW = ORBIT_LOGO_WORLD_WIDTH * 0.5;
+            const pLeft = projectWorldToLogoPixels(center.clone().addScaledVector(cameraRightWorld, -halfWorldW), width, height);
+            const pRight = projectWorldToLogoPixels(center.clone().addScaledVector(cameraRightWorld, halfWorldW), width, height);
+            const logoPixelWidth = Math.max(110, Math.hypot(pRight.x - pLeft.x, pRight.y - pLeft.y));
+            const logoPixelHeight = Math.max(42, logoPixelWidth / Math.max(1.1, orbitLogoAspect));
+
+            orbitLogoObject.style.width = `${logoPixelWidth.toFixed(2)}px`;
+            orbitLogoObject.style.height = `${logoPixelHeight.toFixed(2)}px`;
+
+            // Follow the orbit tangent so the logo stays elegantly centered on the equatorial path.
+            const tangentA = projectWorldToLogoPixels(orbitalPoint(orbitLogoAngle - 0.035), width, height);
+            const tangentB = projectWorldToLogoPixels(orbitalPoint(orbitLogoAngle + 0.035), width, height);
+            const tangentAngle = Math.atan2(tangentB.y - tangentA.y, tangentB.x - tangentA.x) * 180 / Math.PI;
+            const orbitYaw = THREE.MathUtils.clamp(-Math.sin(orbitLogoAngle) * 13.5, -13.5, 13.5);
+            orbitLogoObject.style.transform =
+                `translate3d(${pc.x.toFixed(2)}px, ${pc.y.toFixed(2)}px, 0) ` +
+                `translate(-50%, -50%) rotateZ(${tangentAngle.toFixed(2)}deg) rotateY(${orbitYaw.toFixed(2)}deg)`;
+
+            // Switch the WHOLE solid logo front/back only at the side of the globe.
+            // At that crossing, overlap with Earth is minimal, so there is no sudden dark flash.
             const centerCameraZ = globeCenterWorld.clone().applyMatrix4(camera.matrixWorldInverse).z;
+            const logoCameraZ = center.clone().applyMatrix4(camera.matrixWorldInverse).z;
+            const targetLayer = logoCameraZ > centerCameraZ ? orbitLogoFront : orbitLogoBack;
+            if (orbitLogoObject.parentNode !== targetLayer) targetLayer.appendChild(orbitLogoObject);
 
-            for (const item of orbitLogoSlices) {
-                const u = ORBIT_LOGO_SLICE_COUNT <= 1 ? 0.5 : item.index / (ORBIT_LOGO_SLICE_COUNT - 1);
-                const localTheta = (u - 0.5) * ORBIT_LOGO_ARC;
-                const theta = orbitLogoAngle + localTheta;
+            // Same point light used by the Earth. This is the ONLY light vector used for
+            // the logo's brightness, depth direction and reflection position.
+            const normal = center.clone().normalize();
+            const lightDir = SHARED_LIGHT_POSITION.clone().sub(center).normalize();
+            const viewDir = camera.position.clone().sub(center).normalize();
+            if (normal.dot(viewDir) < 0) normal.multiplyScalar(-1);
+            const diffuse = Math.max(0, normal.dot(lightDir));
+            const halfVector = lightDir.clone().add(viewDir).normalize();
+            const specular = Math.pow(Math.max(0, normal.dot(halfVector)), 18);
+            const grazing = 1 - Math.min(1, Math.abs(normal.dot(viewDir)));
 
-                const center = orbitalPoint(theta, 0);
-                const left = orbitalPoint(theta - halfStep, 0);
-                const right = orbitalPoint(theta + halfStep, 0);
-                const top = center.clone().addScaledVector(orbitUp, halfHeight);
-                const bottom = center.clone().addScaledVector(orbitUp, -halfHeight);
+            const brightness = 0.58 + diffuse * 0.46 + specular * 0.34;
+            const shineOpacity = Math.min(0.92, 0.06 + diffuse * 0.17 + specular * 0.72);
+            const glow = 3.5 + specular * 12.0;
+            const glowAlpha = 0.10 + specular * 0.34;
+            orbitLogoObject.style.setProperty('--logo-brightness', brightness.toFixed(3));
+            orbitLogoObject.style.setProperty('--shine-opacity', shineOpacity.toFixed(3));
+            orbitLogoObject.style.setProperty('--logo-glow', `${glow.toFixed(1)}px`);
+            orbitLogoObject.style.setProperty('--logo-glow-alpha', glowAlpha.toFixed(3));
 
-                const pc = projectWorldToLogoPixels(center, width, height);
-                const pl = projectWorldToLogoPixels(left, width, height);
-                const pr = projectWorldToLogoPixels(right, width, height);
-                const pt = projectWorldToLogoPixels(top, width, height);
-                const pb = projectWorldToLogoPixels(bottom, width, height);
+            const lightScreen = projectWorldToLogoPixels(SHARED_LIGHT_POSITION, width, height);
+            const shineX = THREE.MathUtils.clamp(50 + ((lightScreen.x - pc.x) / logoPixelWidth) * 72, 6, 94);
+            const shineY = THREE.MathUtils.clamp(50 + ((lightScreen.y - pc.y) / logoPixelHeight) * 52, 8, 92);
+            orbitLogoObject.style.setProperty('--shine-x', `${shineX.toFixed(1)}%`);
+            orbitLogoObject.style.setProperty('--shine-y', `${shineY.toFixed(1)}%`);
 
-                // Wide overlapping panels remove the old hairline/mosaic look. Each panel
-                // also gets a real CSS perspective yaw so the curved PNG reads as a solid 3D shell.
-                const sliceWidth = Math.max(8, Math.hypot(pr.x - pl.x, pr.y - pl.y) * 1.30 + 5.0);
-                const sliceHeight = Math.max(14, Math.hypot(pb.x - pt.x, pb.y - pt.y) * 1.025 + 1.4);
-                const verticalAngle = Math.atan2(pb.y - pt.y, pb.x - pt.x) * 180 / Math.PI - 90;
-                const panelNormal = center.clone().normalize();
-                const cameraDir = camera.position.clone().sub(center).normalize();
-                const facing = THREE.MathUtils.clamp(panelNormal.dot(cameraDir), -1, 1);
-                const yawSign = Math.sign(pr.x - pl.x) || 1;
-                const yaw = THREE.MathUtils.clamp((1 - Math.abs(facing)) * 42 * yawSign, -42, 42);
-
-                item.slice.style.width = `${sliceWidth.toFixed(2)}px`;
-                item.slice.style.height = `${sliceHeight.toFixed(2)}px`;
-                item.slice.style.transform = `translate3d(${(pc.x - sliceWidth / 2).toFixed(2)}px, ${(pc.y - sliceHeight / 2).toFixed(2)}px, 0) rotateZ(${verticalAngle.toFixed(3)}deg) rotateY(${yaw.toFixed(2)}deg)`;
-
-                // Each narrow piece moves through the globe independently, so the logo is
-                // occluded continuously rather than suddenly switching as one flat image.
-                const cameraZ = center.clone().applyMatrix4(camera.matrixWorldInverse).z;
-                const targetLayer = cameraZ > centerCameraZ ? orbitLogoFront : orbitLogoBack;
-                if (item.slice.parentNode !== targetLayer) targetLayer.appendChild(item.slice);
-
-                // Exact same light point as Earth: diffuse and specular are derived from
-                // SHARED_LIGHT_POSITION, never from a front/back brightness toggle.
-                const normal = panelNormal.clone();
-                const lightDir = SHARED_LIGHT_POSITION.clone().sub(center).normalize();
-                const viewDir = camera.position.clone().sub(center).normalize();
-                if (normal.dot(viewDir) < 0) normal.multiplyScalar(-1);
-                const diffuse = Math.max(0, normal.dot(lightDir));
-                const halfVector = lightDir.clone().add(viewDir).normalize();
-                const specular = Math.pow(Math.max(0, normal.dot(halfVector)), 10);
-                const grazing = 1 - Math.min(1, Math.abs(normal.dot(viewDir)));
-                const brightness = 0.62 + diffuse * 0.48 + specular * 0.42;
-
-                item.face.style.filter = `brightness(${brightness.toFixed(3)}) contrast(1.12) saturate(.98) drop-shadow(0 0 ${(2.5 + specular * 11).toFixed(1)}px rgba(214,231,250,${(0.10 + specular * 0.40).toFixed(3)}))`;
-
-                // One broad metallic highlight driven by the SAME point-light vector as Earth.
-                const broadSpec = Math.min(1, specular * 1.08 + diffuse * 0.16 + grazing * 0.05);
-                item.shine.style.opacity = (0.02 + broadSpec * 0.78).toFixed(3);
-                item.shine.style.filter = `blur(${(0.25 + (1 - broadSpec) * 0.55).toFixed(2)}px)`;
-                item.shine.style.transform = `translate3d(${((0.5 - u) * 4).toFixed(2)}px, 0, 4px)`;
-
-                // Thick extrusion goes AWAY from the shared light's screen position. Multiple
-                // tightly stacked copies merge into one solid 3D edge instead of visible lines.
-                let dx = pc.x - lightScreen.x;
-                let dy = pc.y - lightScreen.y;
-                let len = Math.hypot(dx, dy);
-                if (len < 1) {
-                    dx = pc.x - centerScreen.x;
-                    dy = pc.y - centerScreen.y;
-                    len = Math.hypot(dx, dy) || 1;
-                }
-                const ux = dx / len;
-                const uy = dy / len;
-                const maxDepthPx = 10.5 + grazing * 4.5;
-                item.depths.forEach((depthEl, depthIndex) => {
-                    const t = (depthIndex + 1) / item.depths.length;
-                    const depth = maxDepthPx * t;
-                    depthEl.style.transform = `translate(${(ux * depth).toFixed(2)}px, ${(uy * depth).toFixed(2)}px)`;
-                    depthEl.style.opacity = (0.98 - t * 0.20).toFixed(3);
-                    depthEl.style.filter = `brightness(${(0.10 + diffuse * 0.22 + specular * 0.16).toFixed(3)}) saturate(.72) contrast(1.32)`;
-                });
-            }
+            // Solid 3D extrusion of the COMPLETE PNG silhouette. Because each layer is a
+            // full logo, there are no vertical bars, duplicated strips or mosaic artifacts.
+            let depthX = pc.x - lightScreen.x;
+            let depthY = pc.y - lightScreen.y;
+            const depthLen = Math.hypot(depthX, depthY) || 1;
+            depthX /= depthLen;
+            depthY /= depthLen;
+            const maxDepth = 7.0 + grazing * 4.5;
+            orbitLogoDepthImages.forEach((img, index) => {
+                const t = (index + 1) / orbitLogoDepthImages.length;
+                const d = maxDepth * t;
+                img.style.transform = `translate3d(${(depthX * d).toFixed(2)}px, ${(depthY * d).toFixed(2)}px, ${(-index * 1.15).toFixed(2)}px)`;
+                img.style.opacity = (0.92 - t * 0.20).toFixed(3);
+                img.style.filter = `brightness(${(0.10 + diffuse * 0.16 + specular * 0.10).toFixed(3)}) saturate(.72) contrast(1.38)`;
+            });
         }
 
         let lastTime = performance.now();
@@ -2318,7 +2330,7 @@
         
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=44', { updateViaCache: 'none' })
+                navigator.serviceWorker.register('./sw.js?v=45', { updateViaCache: 'none' })
                     .then((registration) => registration.update())
                     .catch((err) => { console.warn('Service worker registration failed:', err); });
             });
