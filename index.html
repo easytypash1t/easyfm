@@ -30,11 +30,6 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" type="image/png" sizes="192x192" href="./assets/logo-192.png">
     <link rel="apple-touch-icon" href="./assets/logo-192.png">
-    <link rel="preload" as="image" href="./assets/av8t7brd.png" fetchpriority="high">
-    <link rel="preload" as="image" href="./assets/xllwx1bt.png">
-    <link rel="preload" as="image" href="./assets/tcbusgul.png">
-    <link rel="preload" as="image" href="./assets/bhocuany.png">
-    <link rel="preload" as="image" href="./assets/bkslqch8.png">
     <link rel="preload" as="image" href="./assets/logo-512.png" fetchpriority="high">
     <link rel="preload" as="image" href="./assets/earth_atmos_2048.jpg" fetchpriority="high">
     <link rel="preconnect" href="https://www.youtube.com">
@@ -43,7 +38,8 @@
     <link rel="preload" as="script" href="https://www.youtube.com/iframe_api">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;900&family=Syne:wght@800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;900&family=Syne:wght@800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;900&family=Syne:wght@800;900&display=swap" rel="stylesheet"></noscript>
 
     <style>
         * {
@@ -603,10 +599,6 @@
         html[data-quality="low"] .scanline-overlay, html[data-quality="low"] .start-btn::after { animation:none; }
         html[data-quality="low"] .photo-web-3d { will-change:auto; }
         @media(max-width:700px){ .main-wrapper{padding-left:10px;padding-right:10px}.video-container{border-radius:18px}.now-playing-card{border-radius:16px} }
-
-
-
-        /* --- SP1DER 2.1 additions --- */
         #listener-count {
             display: inline-block;
             min-width: 1.2ch;
@@ -866,50 +858,6 @@
             .history-backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; }
         }
 
-
-
-        /* One-shot boot gate: the interface appears only when local media + preview are ready. */
-        #boot-screen {
-            position: fixed;
-            inset: 0;
-            z-index: 999;
-            display: grid;
-            place-items: center;
-            background: #020202;
-            opacity: 1;
-            visibility: visible;
-            transition: opacity .32s ease, visibility .32s ease;
-        }
-
-        .boot-mark {
-            font-family: 'Syne', 'Arial Black', sans-serif;
-            font-size: clamp(18px, 4vw, 30px);
-            font-weight: 900;
-            letter-spacing: .22em;
-            color: #fff;
-            text-shadow: 0 0 20px rgba(255,255,255,.18);
-            animation: bootPulse .9s ease-in-out infinite alternate;
-        }
-
-        @keyframes bootPulse {
-            from { opacity: .38; transform: scale(.985); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        body.booting .main-wrapper,
-        body.booting #photo-webs-container,
-        body.booting .scanline-overlay,
-        body.booting .ambient-glow {
-            opacity: 0 !important;
-            visibility: hidden !important;
-        }
-
-        body:not(.booting) #boot-screen {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-        }
-
         .main-wrapper,
         #photo-webs-container,
         .scanline-overlay {
@@ -918,12 +866,11 @@
 
     </style>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
-<body class="booting">
-    <div id="boot-screen" aria-hidden="true"><div class="boot-mark">SP1DER</div></div>
+<body>
     <div class="scanline-overlay"></div>
 
     <div id="photo-webs-container"></div>
@@ -1002,49 +949,7 @@
     </div>
 
     <script>
-        
-        const LOCAL_MEDIA_ASSETS = [
-            './assets/av8t7brd.png',
-            './assets/xllwx1bt.png',
-            './assets/tcbusgul.png',
-            './assets/bhocuany.png',
-            './assets/bkslqch8.png',
-            './assets/logo-192.png',
-            './assets/logo-512.png',
-            './assets/earth_atmos_2048.jpg'
-        ];
-
-        const bootReady = { assets: false, earth: false, orbitLogo: false, youtube: false };
-        let bootReleased = false;
-
-        function releaseBoot(force = false) {
-            if (bootReleased) return;
-            const ready = Object.values(bootReady).every(Boolean);
-            if (!ready && !force) return;
-            bootReleased = true;
-            document.body.classList.remove('booting');
-            const bootScreen = document.getElementById('boot-screen');
-            if (bootScreen) setTimeout(() => bootScreen.remove(), 420);
-        }
-
-        function markBootReady(key) {
-            if (key in bootReady) bootReady[key] = true;
-            releaseBoot(false);
-        }
-
-        function preloadLocalMedia() {
-            return Promise.all(LOCAL_MEDIA_ASSETS.map((src) => new Promise((resolve) => {
-                const img = new Image();
-                img.decoding = 'async';
-                img.onload = resolve;
-                img.onerror = resolve;
-                img.src = src;
-                if (img.complete) resolve();
-            }))).then(() => markBootReady('assets'));
-        }
-
-        preloadLocalMedia();
-        setTimeout(() => releaseBoot(true), 10000);
+        window.addEventListener('DOMContentLoaded', () => {
 
         const photoWebsContainer = document.getElementById('photo-webs-container');
 
@@ -1255,7 +1160,6 @@
         function getPlaylistForCycle(cycleIndex) {
             if (!playlistCache.has(cycleIndex)) {
                 playlistCache.set(cycleIndex, seededShuffle(baseSongList, cycleIndex + 42));
-                // History only needs nearby cycles; prevent an unbounded cache.
                 while (playlistCache.size > 4) {
                     const oldestKey = playlistCache.keys().next().value;
                     playlistCache.delete(oldestKey);
@@ -1483,10 +1387,6 @@
 
         startNowPlayingTicker();
 
-        const tag = document.createElement('script');
-        tag.src = "https://www.youtube.com/iframe_api";
-        document.head.appendChild(tag);
-
         const streamStatusEl = document.getElementById('stream-status');
         let streamStatusTimer = null;
 
@@ -1502,7 +1402,7 @@
             }
         }
 
-        function onYouTubeIframeAPIReady() {
+        window.onYouTubeIframeAPIReady = function() {
             const state = resolvePlayableState(getCurrentStreamState());
             if (!state) {
                 showStreamStatus('STREAM TEMPORARILY UNAVAILABLE', 0);
@@ -1537,13 +1437,15 @@
                     'onError': onPlayerError
                 }
             });
-        }
+        };
+
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(tag);
 
         function onPlayerError(event) {
-            markBootReady('youtube');
             if (currentLoadedVideoId) failedVideoIds.add(currentLoadedVideoId);
             actualPlayerStatePlaying = false;
-            // Keep listener presence while the joined session skips/reloads a failed track.
             updateAudioVisualState();
             showStreamStatus(`TRACK UNAVAILABLE · SKIPPING (${event.data || 'ERR'})`, 2600);
 
@@ -1583,7 +1485,6 @@
         function onPlayerStateChange(event) {
             if (event.data === YT.PlayerState.PLAYING) {
                 actualPlayerStatePlaying = true;
-                markBootReady('youtube');
                 showStreamStatus('');
             } else if (event.data === YT.PlayerState.ENDED) {
                 actualPlayerStatePlaying = false;
@@ -1597,8 +1498,6 @@
             } else {
                 actualPlayerStatePlaying = false;
             }
-            // Firebase presence intentionally does NOT follow these transient player states.
-            // A listener joins once with JOIN LIVE and leaves when the page/session closes.
             updateAudioVisualState();
         }
 
@@ -1625,9 +1524,6 @@
                 ? player.getPlayerState()
                 : null;
 
-            // If the actual YouTube clip ends a little before the schedule duration,
-            // never replay the finished clip. Hold it until the wall-clock schedule advances,
-            // then the ID-change branch above loads the next video's preview automatically.
             if (previewPlayerState === YT.PlayerState.ENDED) return;
 
             if (typeof player.getCurrentTime === 'function') {
@@ -1684,7 +1580,6 @@
                 clearInterval(previewSyncInterval);
                 previewSyncInterval = null;
             }
-            // Count the joined session once; do not remove/re-add it on YouTube state changes.
             setListeningPresence(true);
 
             const volumeBox = document.getElementById('volume-box');
@@ -1818,7 +1713,6 @@
             powerPreference: "high-performance"
         });
         if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
-        // Predictable scene-light values for the Earth.
         if ('physicallyCorrectLights' in renderer) renderer.physicallyCorrectLights = false;
         if (THREE.ACESFilmicToneMapping) renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = renderQuality === 'low' ? 0.88 : renderQuality === 'balanced' ? 0.92 : 0.96;
@@ -1873,12 +1767,10 @@
                 if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
                 material.map = texture;
                 material.needsUpdate = true;
-                markBootReady('earth');
             },
             undefined,
             () => {
                 console.warn('Local Earth texture failed to load.');
-                markBootReady('earth');
             }
         );
 
@@ -1886,101 +1778,137 @@
         globeMesh.renderOrder = 0;
         scene.add(globeMesh);
 
-        // Real WebGL orbit logo: curved physical geometry + actual Z depth.
         const orbitLogoRoot = new THREE.Group();
         const orbitLogoSpin = new THREE.Group();
-        orbitLogoRoot.rotation.x = THREE.MathUtils.degToRad(-17);
-        orbitLogoRoot.rotation.z = THREE.MathUtils.degToRad(24);
         orbitLogoRoot.add(orbitLogoSpin);
         scene.add(orbitLogoRoot);
 
-        const ORBIT_RADIUS = baseRadius + (renderQuality === 'low' ? 0.38 : 0.42);
-        const ORBIT_ARC = THREE.MathUtils.degToRad(renderQuality === 'low' ? 38 : renderQuality === 'balanced' ? 42 : 46);
-        const ORBIT_HEIGHT = renderQuality === 'low' ? 0.72 : renderQuality === 'balanced' ? 0.78 : 0.84;
-        const ORBIT_THICKNESS = renderQuality === 'low' ? 0.075 : renderQuality === 'balanced' ? 0.095 : 0.115;
-        const ORBIT_DEPTH_LAYERS = renderQuality === 'low' ? 5 : renderQuality === 'balanced' ? 7 : 9;
-        const ORBIT_RADIAL_SEGMENTS = renderQuality === 'low' ? 28 : renderQuality === 'balanced' ? 36 : 44;
-        const orbitLogoMaterials = [];
+        const ORBIT_RADIUS = baseRadius + (renderQuality === 'low' ? 0.46 : renderQuality === 'balanced' ? 0.49 : 0.52);
+        const ORBIT_ARC = THREE.MathUtils.degToRad(renderQuality === 'low' ? 64 : renderQuality === 'balanced' ? 70 : 74);
+        const ORBIT_HEIGHT = renderQuality === 'low' ? 1.12 : renderQuality === 'balanced' ? 1.22 : 1.32;
+        const ORBIT_THICKNESS = renderQuality === 'low' ? 0.13 : renderQuality === 'balanced' ? 0.15 : 0.17;
+        const ORBIT_WIDTH_SEGMENTS = renderQuality === 'low' ? 32 : renderQuality === 'balanced' ? 44 : 56;
         let orbitLogoFrontMaterial = null;
         let orbitLogoShineMaterial = null;
         let orbitLogoMeshReady = false;
 
-        function buildCurvedOrbitLogo(texture) {
-            const logoGroup = new THREE.Group();
-            const thetaStart = -ORBIT_ARC * 0.5;
+        function createCurvedLogoGeometry(radius, arc, height, widthSegments) {
+            const positions = [];
+            const normals = [];
+            const uvs = [];
+            const indices = [];
+            const heightSegments = 3;
 
-            for (let i = 0; i < ORBIT_DEPTH_LAYERS; i++) {
-                const t = ORBIT_DEPTH_LAYERS === 1 ? 1 : i / (ORBIT_DEPTH_LAYERS - 1);
-                const radius = ORBIT_RADIUS - ORBIT_THICKNESS + ORBIT_THICKNESS * t;
-                const isFront = i === ORBIT_DEPTH_LAYERS - 1;
-                const layerGeometry = new THREE.CylinderGeometry(
-                    radius,
-                    radius,
-                    ORBIT_HEIGHT,
-                    ORBIT_RADIAL_SEGMENTS,
-                    1,
-                    true,
-                    thetaStart,
-                    ORBIT_ARC
-                );
+            for (let yIndex = 0; yIndex <= heightSegments; yIndex++) {
+                const v = yIndex / heightSegments;
+                const y = height * 0.5 - v * height;
 
-                const layerMaterial = new THREE.MeshPhysicalMaterial({
-                    map: texture,
-                    color: isFront ? 0xffffff : new THREE.Color().setHSL(0.58, 0.08, 0.19 + t * 0.14),
-                    alphaTest: 0.055,
-                    transparent: false,
-                    side: THREE.DoubleSide,
-                    depthTest: true,
-                    depthWrite: true,
-                    roughness: isFront ? 0.20 : 0.62,
-                    metalness: isFront ? 0.12 : 0.02,
-                    clearcoat: isFront ? 1.0 : 0.10,
-                    clearcoatRoughness: isFront ? 0.08 : 0.58,
-                    emissive: 0x000000,
-                    emissiveIntensity: 0
-                });
-
-                const layerMesh = new THREE.Mesh(layerGeometry, layerMaterial);
-                layerMesh.frustumCulled = false;
-                layerMesh.renderOrder = 1;
-                logoGroup.add(layerMesh);
-                orbitLogoMaterials.push(layerMaterial);
-                if (isFront) orbitLogoFrontMaterial = layerMaterial;
+                for (let xIndex = 0; xIndex <= widthSegments; xIndex++) {
+                    const u = xIndex / widthSegments;
+                    const angle = -arc * 0.5 + u * arc;
+                    const sin = Math.sin(angle);
+                    const cos = Math.cos(angle);
+                    positions.push(sin * radius, y, cos * radius);
+                    normals.push(sin, 0, cos);
+                    uvs.push(u, 1 - v);
+                }
             }
 
-            // A very thin outer highlight shell uses the same alpha silhouette and light source.
-            const shineGeometry = new THREE.CylinderGeometry(
-                ORBIT_RADIUS + 0.006,
-                ORBIT_RADIUS + 0.006,
-                ORBIT_HEIGHT * 1.002,
-                ORBIT_RADIAL_SEGMENTS,
-                1,
-                true,
-                thetaStart,
-                ORBIT_ARC
+            const row = widthSegments + 1;
+            for (let yIndex = 0; yIndex < heightSegments; yIndex++) {
+                for (let xIndex = 0; xIndex < widthSegments; xIndex++) {
+                    const a = yIndex * row + xIndex;
+                    const b = a + 1;
+                    const c = a + row;
+                    const d = c + 1;
+                    indices.push(a, c, b, b, c, d);
+                }
+            }
+
+            const curvedGeometry = new THREE.BufferGeometry();
+            curvedGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            curvedGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+            curvedGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+            curvedGeometry.setIndex(indices);
+            curvedGeometry.computeBoundingSphere();
+            return curvedGeometry;
+        }
+
+        function buildCurvedOrbitLogo(texture) {
+            const logoGroup = new THREE.Group();
+            const backGeometry = createCurvedLogoGeometry(
+                ORBIT_RADIUS - ORBIT_THICKNESS,
+                ORBIT_ARC,
+                ORBIT_HEIGHT,
+                ORBIT_WIDTH_SEGMENTS
             );
-            const shineMaterial = new THREE.MeshPhysicalMaterial({
+            const backMaterial = new THREE.MeshPhysicalMaterial({
                 map: texture,
-                color: 0xeaf5ff,
-                alphaTest: 0.055,
+                color: 0x222830,
+                alphaTest: 0.085,
+                transparent: false,
+                side: THREE.FrontSide,
+                depthTest: true,
+                depthWrite: true,
+                roughness: 0.70,
+                metalness: 0.08,
+                clearcoat: 0.12,
+                clearcoatRoughness: 0.55
+            });
+            const backMesh = new THREE.Mesh(backGeometry, backMaterial);
+            backMesh.frustumCulled = false;
+            backMesh.renderOrder = 1;
+            logoGroup.add(backMesh);
+
+            const frontGeometry = createCurvedLogoGeometry(
+                ORBIT_RADIUS,
+                ORBIT_ARC,
+                ORBIT_HEIGHT,
+                ORBIT_WIDTH_SEGMENTS
+            );
+            orbitLogoFrontMaterial = new THREE.MeshPhysicalMaterial({
+                map: texture,
+                color: 0xffffff,
+                alphaTest: 0.085,
+                transparent: false,
+                side: THREE.FrontSide,
+                depthTest: true,
+                depthWrite: true,
+                roughness: 0.12,
+                metalness: 0.24,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.025,
+                reflectivity: 1.0
+            });
+            const frontMesh = new THREE.Mesh(frontGeometry, orbitLogoFrontMaterial);
+            frontMesh.frustumCulled = false;
+            frontMesh.renderOrder = 2;
+            logoGroup.add(frontMesh);
+
+            const shineGeometry = createCurvedLogoGeometry(
+                ORBIT_RADIUS + 0.007,
+                ORBIT_ARC,
+                ORBIT_HEIGHT * 1.002,
+                ORBIT_WIDTH_SEGMENTS
+            );
+            orbitLogoShineMaterial = new THREE.MeshBasicMaterial({
+                map: texture,
+                color: 0xffffff,
+                alphaTest: 0.085,
                 transparent: true,
-                opacity: 0.10,
-                side: THREE.DoubleSide,
+                opacity: 0.09,
+                side: THREE.FrontSide,
                 depthTest: true,
                 depthWrite: false,
-                roughness: 0.06,
-                metalness: 0.28,
-                clearcoat: 1.0,
-                clearcoatRoughness: 0.04
+                blending: THREE.AdditiveBlending
             });
-            orbitLogoShineMaterial = shineMaterial;
-            const shineMesh = new THREE.Mesh(shineGeometry, shineMaterial);
+            const shineMesh = new THREE.Mesh(shineGeometry, orbitLogoShineMaterial);
             shineMesh.frustumCulled = false;
-            shineMesh.renderOrder = 2;
-            shineMesh.userData.isOrbitShine = true;
+            shineMesh.renderOrder = 20;
             logoGroup.add(shineMesh);
 
             orbitLogoSpin.add(logoGroup);
+            orbitLogoSpin.rotation.y = 0;
             orbitLogoMeshReady = true;
         }
 
@@ -1990,19 +1918,16 @@
                 texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
                 texture.wrapS = THREE.ClampToEdgeWrapping;
                 texture.wrapT = THREE.ClampToEdgeWrapping;
-                texture.needsUpdate = true;
+                texture.minFilter = THREE.LinearMipmapLinearFilter;
+                texture.magFilter = THREE.LinearFilter;
                 if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
+                texture.needsUpdate = true;
                 buildCurvedOrbitLogo(texture);
-                markBootReady('orbitLogo');
             },
             undefined,
-            () => {
-                console.warn('Local orbit logo texture failed to load.');
-                markBootReady('orbitLogo');
-            }
+            () => console.error('Orbit logo texture failed:', './assets/logo-512.png')
         );
 
-        // Main point light for the Earth.
         const SHARED_LIGHT_POSITION = new THREE.Vector3(4.9, 3.35, 6.25);
         const keyLight = new THREE.PointLight(
             0xeaf2ff,
@@ -2014,8 +1939,11 @@
         scene.add(keyLight);
 
         const orbitCenterVector = new THREE.Vector3();
+        const orbitNormalVector = new THREE.Vector3();
+        const orbitLightVector = new THREE.Vector3();
+        const orbitViewVector = new THREE.Vector3();
+        const orbitHalfVector = new THREE.Vector3();
         const orbitYAxis = new THREE.Vector3(0, 1, 0);
-        const orbitLightDirection = SHARED_LIGHT_POSITION.clone().normalize();
 
         let lastTime = performance.now();
         let lastRenderTime = lastTime;
@@ -2059,30 +1987,26 @@
 
             const globeSpeed = isPlayingState ? 0.52 : 0.13;
             globeMesh.rotation.y += globeSpeed * deltaTime;
-
-            const orbitSpeed = isPlayingState ? 0.64 : 0.22;
+            const orbitSpeed = isPlayingState ? 0.54 : 0.18;
             if (orbitLogoMeshReady) {
                 orbitLogoSpin.rotation.y += orbitSpeed * deltaTime;
-                orbitLogoRoot.rotation.x = THREE.MathUtils.degToRad(-17) + Math.sin(currentTime * 0.00035) * 0.018;
-                orbitLogoRoot.rotation.z = THREE.MathUtils.degToRad(24) + Math.cos(currentTime * 0.00031) * 0.018;
 
-                // When the logo section is physically behind Earth, hide the whole mark;
-                // otherwise WebGL depth-testing handles the transition at the limb.
                 orbitCenterVector.set(0, 0, ORBIT_RADIUS)
-                    .applyAxisAngle(orbitYAxis, orbitLogoSpin.rotation.y)
-                    .applyEuler(orbitLogoRoot.rotation);
-                orbitLogoSpin.visible = orbitCenterVector.z > -0.12;
+                    .applyAxisAngle(orbitYAxis, orbitLogoSpin.rotation.y);
+                orbitNormalVector.copy(orbitCenterVector).normalize();
+                orbitLightVector.copy(SHARED_LIGHT_POSITION).sub(orbitCenterVector).normalize();
+                orbitViewVector.copy(camera.position).sub(orbitCenterVector).normalize();
+                orbitHalfVector.copy(orbitLightVector).add(orbitViewVector).normalize();
 
-                const lightFacing = Math.max(0, orbitCenterVector.normalize().dot(orbitLightDirection));
-                const specular = Math.pow(lightFacing, 6.5);
+                const diffuseLight = Math.max(0, orbitNormalVector.dot(orbitLightVector));
+                const specular = Math.pow(Math.max(0, orbitNormalVector.dot(orbitHalfVector)), 14);
 
                 if (orbitLogoShineMaterial) {
-                    orbitLogoShineMaterial.opacity = 0.045 + specular * 0.30;
+                    orbitLogoShineMaterial.opacity = Math.min(0.62, 0.07 + diffuseLight * 0.08 + specular * 0.50);
                 }
-
                 if (orbitLogoFrontMaterial) {
-                    orbitLogoFrontMaterial.clearcoat = 0.92 + specular * 0.08;
-                    orbitLogoFrontMaterial.roughness = 0.24 - specular * 0.12;
+                    orbitLogoFrontMaterial.roughness = Math.max(0.045, 0.14 - specular * 0.085);
+                    orbitLogoFrontMaterial.clearcoatRoughness = Math.max(0.012, 0.032 - specular * 0.018);
                 }
             }
 
@@ -2156,8 +2080,6 @@
         const listenersRef = db.ref('online_listeners');
         const listenerCountEl = document.getElementById('listener-count');
 
-        // One deterministic RTDB child per browser tab/session. Reconnects overwrite the
-        // same child instead of push/remove/push, eliminating duplicate or bouncing presence.
         let listenerSessionId = sessionStorage.getItem('sp1der-listener-session');
         if (!listenerSessionId) {
             listenerSessionId = (window.crypto && typeof window.crypto.randomUUID === 'function')
@@ -2189,7 +2111,6 @@
             presenceWriteInFlight = true;
             const generation = ++presenceGeneration;
             try {
-                // Arm server-side cleanup BEFORE announcing this listener.
                 await myPresenceRef.onDisconnect().remove();
                 if (!presenceWanted || !firebaseConnected || generation !== presenceGeneration) return;
                 await myPresenceRef.set({ joinedAt: firebase.database.ServerValue.TIMESTAMP });
@@ -2222,8 +2143,6 @@
             }
 
             presenceWanted = true;
-            // As soon as JOIN LIVE is accepted, this tab is conceptually one listener.
-            // Never flash back to 0 while Firebase is completing/reconnecting the write.
             renderListenerCount(Math.max(1, renderedListenerCount, latestServerListenerCount));
             registerListeningPresence();
         }
@@ -2242,8 +2161,6 @@
             latestServerListenerCount = snap.numChildren();
             clearTimeout(listenerDropTimer);
 
-            // Critical anti-flicker rule: after JOIN LIVE, this tab alone guarantees a
-            // visible minimum of 1 even if RTDB briefly emits 0 during handshake/reconnect.
             const target = presenceWanted
                 ? Math.max(1, latestServerListenerCount)
                 : latestServerListenerCount;
@@ -2253,8 +2170,6 @@
                 return;
             }
 
-            // Genuine departures are still shown, but only after the lower value remains
-            // stable. Transient 1->0->1 / N->lower->N snapshots never reach the UI.
             listenerDropTimer = setTimeout(() => {
                 const settledTarget = presenceWanted
                     ? Math.max(1, latestServerListenerCount)
@@ -2270,11 +2185,10 @@
             if (userHasClicked) setListeningPresence(true);
         });
 
-        // Pointer-follow effects are intentionally absent.
         
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=53', { updateViaCache: 'none' })
+                navigator.serviceWorker.register('./sw.js?v=54', { updateViaCache: 'none' })
                     .then((registration) => registration.update())
                     .catch((err) => { console.warn('Service worker registration failed:', err); });
             });
@@ -2286,6 +2200,7 @@
             if (userHasClicked) syncToLiveStream();
         });
 
+        });
     </script>
 </body>
 </html>
