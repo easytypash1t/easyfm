@@ -216,47 +216,6 @@
         }
 
 
-        #orbit-logo-dom-fallback {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            width: clamp(92px, 20vw, 158px);
-            aspect-ratio: 1 / 1;
-            pointer-events: none;
-            transform-style: preserve-3d;
-            transform-origin: 50% 50%;
-            will-change: transform, filter, opacity;
-            isolation: isolate;
-        }
-
-        #orbit-logo-dom-fallback .orbit-dom-depth,
-        #orbit-logo-dom-fallback .orbit-dom-face {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            pointer-events: none;
-            -webkit-user-drag: none;
-            user-select: none;
-        }
-
-        #orbit-logo-dom-fallback .orbit-dom-depth {
-            filter: brightness(.16) saturate(.72) contrast(1.25);
-            opacity: .48;
-        }
-
-        #orbit-logo-dom-fallback .orbit-dom-face {
-            filter: brightness(1.03) contrast(1.08) saturate(.96)
-                    drop-shadow(0 0 6px rgba(220,235,255,.18));
-        }
-
-        #orbit-logo-dom-fallback.webgl-ready {
-            opacity: 0;
-            transition: opacity .18s ease;
-        }
-
-
         .status-bar {
             display: flex;
             gap: 10px;
@@ -1841,111 +1800,113 @@
         ];
         const orbitLogoRoot = new THREE.Group();
         const orbitLogoSpinGroup = new THREE.Group();
-        const orbitLogoSurfaceGroup = new THREE.Group();
+        const orbitLogoShellGroup = new THREE.Group();
         const orbitLogoMaterials = [];
         let orbitLogoShineMaterial = null;
         let orbitLogoObject = null;
 
-        const ORBIT_LOGO_BASE_TILT_X = THREE.MathUtils.degToRad(-18);
-        const ORBIT_LOGO_BASE_TILT_Z = THREE.MathUtils.degToRad(23);
+        const ORBIT_LOGO_BASE_TILT_X = THREE.MathUtils.degToRad(-17);
+        const ORBIT_LOGO_BASE_TILT_Z = THREE.MathUtils.degToRad(25);
         orbitLogoRoot.rotation.x = ORBIT_LOGO_BASE_TILT_X;
         orbitLogoRoot.rotation.z = ORBIT_LOGO_BASE_TILT_Z;
-        orbitLogoRoot.position.y = 0.02;
+        orbitLogoRoot.position.y = 0.015;
         orbitLogoRoot.add(orbitLogoSpinGroup);
-        orbitLogoSpinGroup.add(orbitLogoSurfaceGroup);
+        orbitLogoSpinGroup.add(orbitLogoShellGroup);
         scene.add(orbitLogoRoot);
 
-        const orbitLogoDomFallback = document.createElement('div');
-        orbitLogoDomFallback.id = 'orbit-logo-dom-fallback';
-        orbitLogoDomFallback.setAttribute('aria-hidden', 'true');
-        for (let i = 0; i < 7; i++) {
-            const depthImg = document.createElement('img');
-            depthImg.className = 'orbit-dom-depth';
-            depthImg.src = ORBIT_LOGO_URL;
-            depthImg.alt = '';
-            const z = -10 + i * 2.2;
-            const x = -5 + i * 0.8;
-            depthImg.style.transform = `translate3d(${x.toFixed(1)}px, 0, ${z.toFixed(1)}px)`;
-            orbitLogoDomFallback.appendChild(depthImg);
-        }
-        const orbitDomFace = document.createElement('img');
-        orbitDomFace.className = 'orbit-dom-face';
-        orbitDomFace.src = ORBIT_LOGO_URL;
-        orbitDomFace.alt = '';
-        orbitDomFace.style.transform = 'translateZ(7px)';
-        orbitLogoDomFallback.appendChild(orbitDomFace);
-        globeContainer.appendChild(orbitLogoDomFallback);
-
-        function createOrbitLogoObject(texture) {
+        function buildOrbitLogoMesh(texture) {
             const group = new THREE.Group();
-            const logoRadius = baseRadius + (renderQuality === 'low' ? 0.40 : renderQuality === 'balanced' ? 0.43 : 0.46);
-            const logoHeight = renderQuality === 'low' ? 0.82 : renderQuality === 'balanced' ? 0.90 : 0.98;
-            const thetaLength = THREE.MathUtils.degToRad(renderQuality === 'low' ? 30 : renderQuality === 'balanced' ? 35 : 39);
-            const thetaStart = -thetaLength / 2;
-            const layerCount = renderQuality === 'low' ? 4 : renderQuality === 'balanced' ? 5 : 6;
-            const radialSegments = renderQuality === 'low' ? 18 : renderQuality === 'balanced' ? 24 : 28;
-            const shellDepth = renderQuality === 'low' ? 0.055 : renderQuality === 'balanced' ? 0.068 : 0.082;
+            const arcAngle = THREE.MathUtils.degToRad(renderQuality === 'low' ? 44 : renderQuality === 'balanced' ? 48 : 52);
+            const arcStart = -arcAngle / 2;
+            const outerRadius = baseRadius + (renderQuality === 'low' ? 0.58 : renderQuality === 'balanced' ? 0.62 : 0.66);
+            const thickness = renderQuality === 'low' ? 0.11 : renderQuality === 'balanced' ? 0.135 : 0.155;
+            const layerCount = renderQuality === 'low' ? 5 : renderQuality === 'balanced' ? 6 : 8;
+            const height = renderQuality === 'low' ? 0.86 : renderQuality === 'balanced' ? 0.93 : 1.02;
+            const radialSegments = renderQuality === 'low' ? 26 : renderQuality === 'balanced' ? 34 : 40;
 
             for (let i = 0; i < layerCount; i++) {
                 const t = layerCount === 1 ? 0 : i / (layerCount - 1);
-                const radius = logoRadius - shellDepth * 0.5 + shellDepth * t;
-                const curvedGeometry = new THREE.CylinderGeometry(
+                const radius = outerRadius - thickness + thickness * t;
+                const layerMaterial = new THREE.MeshPhysicalMaterial({
+                    map: texture,
+                    transparent: true,
+                    alphaTest: 0.08,
+                    side: THREE.FrontSide,
+                    depthTest: true,
+                    depthWrite: true,
+                    color: i === layerCount - 1 ? 0xffffff : 0x93a0ae,
+                    roughness: i === layerCount - 1 ? 0.22 : 0.66,
+                    metalness: i === layerCount - 1 ? 0.10 : 0.03,
+                    clearcoat: i === layerCount - 1 ? 0.95 : 0.12,
+                    clearcoatRoughness: i === layerCount - 1 ? 0.10 : 0.55,
+                    opacity: i === layerCount - 1 ? 0.995 : 0.20 + t * 0.13
+                });
+                const layerGeometry = new THREE.CylinderGeometry(
                     radius,
                     radius,
-                    logoHeight,
+                    height,
                     radialSegments,
                     1,
                     true,
-                    thetaStart,
-                    thetaLength
+                    arcStart,
+                    arcAngle
                 );
-
-                const isFrontLayer = i === layerCount - 1;
-                const curvedMaterial = new THREE.MeshPhysicalMaterial({
-                    map: texture,
-                    color: isFrontLayer ? 0xffffff : 0xb8c3d0,
-                    transparent: true,
-                    alphaTest: 0.045,
-                    side: THREE.DoubleSide,
-                    roughness: isFrontLayer ? 0.23 : 0.58,
-                    metalness: isFrontLayer ? 0.10 : 0.02,
-                    clearcoat: isFrontLayer ? 1.0 : 0.14,
-                    clearcoatRoughness: isFrontLayer ? 0.11 : 0.58,
-                    opacity: isFrontLayer ? 0.99 : 0.22 + t * 0.18
-                });
-
-                const curvedMesh = new THREE.Mesh(curvedGeometry, curvedMaterial);
-                curvedMesh.renderOrder = 12 + i;
-                orbitLogoMaterials.push(curvedMaterial);
-                group.add(curvedMesh);
+                const layerMesh = new THREE.Mesh(layerGeometry, layerMaterial);
+                layerMesh.renderOrder = 12 + i;
+                layerMesh.frustumCulled = false;
+                orbitLogoMaterials.push(layerMaterial);
+                group.add(layerMesh);
             }
 
+            const rimRadius = outerRadius - thickness * 0.5;
+            const rimDepth = thickness * 0.96;
+            const rimWidth = 0.03;
+            const rimColor = 0x667280;
+            [arcStart, arcStart + arcAngle].forEach((angle) => {
+                const rimGeometry = new THREE.BoxGeometry(rimDepth, height * 0.96, rimWidth);
+                const rimMaterial = new THREE.MeshStandardMaterial({
+                    color: rimColor,
+                    roughness: 0.74,
+                    metalness: 0.04,
+                    transparent: true,
+                    opacity: 0.9,
+                    depthTest: true,
+                    depthWrite: true
+                });
+                const rimMesh = new THREE.Mesh(rimGeometry, rimMaterial);
+                rimMesh.position.set(Math.sin(angle) * rimRadius, 0, Math.cos(angle) * rimRadius);
+                rimMesh.rotation.y = -angle;
+                rimMesh.renderOrder = 24;
+                group.add(rimMesh);
+            });
+
             const shineGeometry = new THREE.CylinderGeometry(
-                logoRadius + shellDepth * 0.56,
-                logoRadius + shellDepth * 0.56,
-                logoHeight * 1.01,
+                outerRadius + 0.006,
+                outerRadius + 0.006,
+                height * 1.005,
                 radialSegments,
                 1,
                 true,
-                thetaStart,
-                thetaLength
+                arcStart,
+                arcAngle
             );
-
             orbitLogoShineMaterial = new THREE.MeshPhysicalMaterial({
                 map: texture,
-                color: 0xe9f4ff,
                 transparent: true,
-                alphaTest: 0.045,
-                side: THREE.DoubleSide,
+                alphaTest: 0.08,
+                side: THREE.FrontSide,
+                depthTest: true,
+                depthWrite: false,
+                color: 0xeaf4ff,
                 roughness: 0.08,
-                metalness: 0.24,
+                metalness: 0.26,
                 clearcoat: 1.0,
-                clearcoatRoughness: 0.06,
-                opacity: renderQuality === 'low' ? 0.14 : 0.18
+                clearcoatRoughness: 0.05,
+                opacity: renderQuality === 'low' ? 0.07 : 0.10
             });
-
             const shineMesh = new THREE.Mesh(shineGeometry, orbitLogoShineMaterial);
             shineMesh.renderOrder = 40;
+            shineMesh.frustumCulled = false;
             group.add(shineMesh);
 
             return group;
@@ -1956,7 +1917,7 @@
 
         function loadOrbitLogoTexture(index = 0) {
             if (index >= ORBIT_LOGO_TEXTURE_SOURCES.length) {
-                console.warn('Orbit logo WebGL texture failed on every source; DOM 3D fallback remains active.');
+                console.warn('Orbit logo texture failed to load from all sources.');
                 return;
             }
 
@@ -1969,14 +1930,9 @@
                     logoTexture.wrapT = THREE.ClampToEdgeWrapping;
                     logoTexture.needsUpdate = true;
 
-                    orbitLogoObject = createOrbitLogoObject(logoTexture);
-                    orbitLogoSurfaceGroup.add(orbitLogoObject);
-                    orbitLogoSpinGroup.rotation.y = 0.06;
-
-                    orbitLogoDomFallback.classList.add('webgl-ready');
-                    setTimeout(() => {
-                        if (orbitLogoDomFallback.parentNode) orbitLogoDomFallback.parentNode.removeChild(orbitLogoDomFallback);
-                    }, 240);
+                    orbitLogoObject = buildOrbitLogoMesh(logoTexture);
+                    orbitLogoShellGroup.add(orbitLogoObject);
+                    orbitLogoSpinGroup.rotation.y = 0;
                 },
                 undefined,
                 () => loadOrbitLogoTexture(index + 1)
@@ -2043,50 +1999,28 @@
             const globeSpeed = isPlayingState ? 0.52 : 0.13;
             globeMesh.rotation.y += globeSpeed * deltaTime;
 
-            const orbitSpeed = isPlayingState ? 0.84 : 0.28;
+            const orbitSpeed = isPlayingState ? 0.72 : 0.24;
 
             if (orbitLogoObject) {
                 orbitLogoSpinGroup.rotation.y += orbitSpeed * deltaTime;
-                orbitLogoRoot.rotation.x = ORBIT_LOGO_BASE_TILT_X + Math.sin(currentTime * 0.00046) * 0.055;
-                orbitLogoRoot.rotation.z = ORBIT_LOGO_BASE_TILT_Z + Math.cos(currentTime * 0.00039) * 0.05;
-                orbitLogoRoot.position.y = Math.sin(currentTime * 0.00112) * 0.028;
+                orbitLogoRoot.rotation.x = ORBIT_LOGO_BASE_TILT_X + Math.sin(currentTime * 0.00042) * 0.035;
+                orbitLogoRoot.rotation.z = ORBIT_LOGO_BASE_TILT_Z + Math.cos(currentTime * 0.00036) * 0.03;
+                orbitLogoRoot.position.y = Math.sin(currentTime * 0.00095) * 0.018;
 
-                orbitLogoSurfaceGroup.getWorldQuaternion(orbitLogoWorldQuaternion);
+                orbitLogoShellGroup.getWorldQuaternion(orbitLogoWorldQuaternion);
                 orbitLogoWorldNormal.set(0, 0, 1).applyQuaternion(orbitLogoWorldQuaternion).normalize();
                 const facingLight = Math.max(0, orbitLogoWorldNormal.dot(orbitLogoLightDirection));
 
                 orbitLogoMaterials.forEach((material, index) => {
                     const frontness = (index + 1) / orbitLogoMaterials.length;
                     material.opacity = index === orbitLogoMaterials.length - 1
-                        ? 0.95 + facingLight * 0.04
-                        : 0.18 + frontness * 0.12 + facingLight * 0.03;
+                        ? 0.985
+                        : 0.18 + frontness * 0.11 + facingLight * 0.04;
                 });
 
                 if (orbitLogoShineMaterial) {
-                    orbitLogoShineMaterial.opacity = (renderQuality === 'low' ? 0.10 : 0.14) + facingLight * (renderQuality === 'low' ? 0.10 : 0.17);
+                    orbitLogoShineMaterial.opacity = (renderQuality === 'low' ? 0.05 : 0.08) + facingLight * (renderQuality === 'low' ? 0.10 : 0.16);
                 }
-            }
-
-            if (orbitLogoDomFallback && orbitLogoDomFallback.isConnected) {
-                const fallbackAngle = currentTime * 0.001 * orbitSpeed + 0.06;
-                const orbitX = Math.sin(fallbackAngle) * Math.min(globeContainer.clientWidth * 0.205, 118);
-                const orbitScale = 0.82 + (Math.cos(fallbackAngle) + 1) * 0.10;
-                const orbitYaw = Math.sin(fallbackAngle) * 33;
-                const orbitPitch = -16 + Math.cos(fallbackAngle * 0.68) * 4;
-                const orbitRoll = 22 + Math.sin(fallbackAngle * 0.55) * 5;
-                const frontAmount = (Math.cos(fallbackAngle) + 1) * 0.5;
-
-                orbitLogoDomFallback.style.zIndex = Math.cos(fallbackAngle) >= 0 ? '3' : '1';
-                orbitLogoDomFallback.style.opacity = String(0.54 + frontAmount * 0.46);
-                orbitLogoDomFallback.style.transform =
-                    `translate(-50%, -50%) translate3d(${orbitX.toFixed(2)}px, 0, 0) ` +
-                    `rotateX(${orbitPitch.toFixed(2)}deg) rotateY(${orbitYaw.toFixed(2)}deg) ` +
-                    `rotateZ(${orbitRoll.toFixed(2)}deg) scale(${orbitScale.toFixed(3)})`;
-
-                const fallbackLight = 0.88 + frontAmount * 0.30;
-                orbitDomFace.style.filter =
-                    `brightness(${fallbackLight.toFixed(2)}) contrast(1.08) saturate(.96) ` +
-                    `drop-shadow(0 0 ${(4 + frontAmount * 8).toFixed(1)}px rgba(220,235,255,${(0.10 + frontAmount * 0.22).toFixed(2)}))`;
             }
 
             animatePhotoWebs(deltaTime);
