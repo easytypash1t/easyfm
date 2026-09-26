@@ -16,8 +16,8 @@
     <meta property="og:site_name" content="SP1DER">
     <meta property="og:title" content="SP1DER">
     <meta property="og:description" content="SP1DER live music stream.">
-    <meta property="og:image" content="https://i.hizliresim.com/dbqnjtaq.png">
-    <meta property="og:image:secure_url" content="https://i.hizliresim.com/dbqnjtaq.png">
+    <meta property="og:image" content="./assets/logo-512.png">
+    <meta property="og:image:secure_url" content="./assets/logo-512.png">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="512">
     <meta property="og:image:height" content="512">
@@ -25,16 +25,22 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="SP1DER">
     <meta name="twitter:description" content="SP1DER live music stream.">
-    <meta name="twitter:image" content="https://i.hizliresim.com/dbqnjtaq.png">
+    <meta name="twitter:image" content="./assets/logo-512.png">
     <meta name="twitter:image:alt" content="SP1DER">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="icon" type="image/png" sizes="192x192" href="https://i.hizliresim.com/6vgt6odx.png">
-    <link rel="apple-touch-icon" href="https://i.hizliresim.com/6vgt6odx.png">
-    <link rel="preload" as="image" href="https://i.hizliresim.com/av8t7brd.png" fetchpriority="high">
-    <link rel="preload" as="image" href="https://i.hizliresim.com/xllwx1bt.png">
-    <link rel="preload" as="image" href="https://i.hizliresim.com/tcbusgul.png">
-    <link rel="preload" as="image" href="https://i.hizliresim.com/bhocuany.png">
-    <link rel="preload" as="image" href="https://i.hizliresim.com/bkslqch8.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/logo-192.png">
+    <link rel="apple-touch-icon" href="./assets/logo-192.png">
+    <link rel="preload" as="image" href="./assets/av8t7brd.png" fetchpriority="high">
+    <link rel="preload" as="image" href="./assets/xllwx1bt.png">
+    <link rel="preload" as="image" href="./assets/tcbusgul.png">
+    <link rel="preload" as="image" href="./assets/bhocuany.png">
+    <link rel="preload" as="image" href="./assets/bkslqch8.png">
+    <link rel="preload" as="image" href="./assets/logo-512.png" fetchpriority="high">
+    <link rel="preload" as="image" href="./assets/earth_atmos_2048.jpg" fetchpriority="high">
+    <link rel="preconnect" href="https://www.youtube.com">
+    <link rel="preconnect" href="https://i.ytimg.com">
+    <link rel="preconnect" href="https://www.googlevideo.com">
+    <link rel="preload" as="script" href="https://www.youtube.com/iframe_api">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;900&family=Syne:wght@800;900&display=swap" rel="stylesheet">
@@ -214,72 +220,6 @@
             outline: none;
             filter: drop-shadow(0 0 18px rgba(214,226,242,.10)) drop-shadow(0 0 44px rgba(90,120,155,.055));
         }
-
-
-        /* Remote-logo CSS 3D orbit: the PNG stays URL-only, never bundled locally. */
-        #orbit-logo-css3d-stage {
-            position: absolute;
-            inset: 0;
-            z-index: 3;
-            pointer-events: none;
-            overflow: visible;
-            perspective: 900px;
-            perspective-origin: 50% 50%;
-            transform-style: preserve-3d;
-        }
-
-        #orbit-logo-css3d {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 0;
-            height: 0;
-            transform-style: preserve-3d;
-            transform-origin: 0 0;
-            will-change: transform, opacity, filter;
-        }
-
-        .orbit-logo-segment {
-            position: absolute;
-            left: 0;
-            top: 0;
-            transform-style: preserve-3d;
-            transform-origin: 50% 50%;
-            backface-visibility: hidden;
-            -webkit-backface-visibility: hidden;
-        }
-
-        .orbit-logo-plane {
-            position: absolute;
-            inset: 0;
-            background-repeat: no-repeat;
-            background-color: transparent;
-            transform-origin: 50% 50%;
-            backface-visibility: hidden;
-            -webkit-backface-visibility: hidden;
-            pointer-events: none;
-        }
-
-        .orbit-logo-plane.depth {
-            filter: brightness(.11) saturate(.55) contrast(1.3);
-            opacity: .88;
-        }
-
-        .orbit-logo-plane.face {
-            filter:
-                brightness(var(--orbit-face-brightness, 1))
-                contrast(1.08)
-                saturate(.96)
-                drop-shadow(0 0 var(--orbit-glow, 4px) rgba(220,236,255,var(--orbit-glow-alpha,.16)));
-        }
-
-        .orbit-logo-plane.shine {
-            mix-blend-mode: screen;
-            filter: brightness(2.15) saturate(.48) contrast(1.12);
-            opacity: var(--orbit-shine, .05);
-        }
-
-        html[data-quality="low"] .orbit-logo-plane.depth.depth-extra { display: none; }
 
 
         .status-bar {
@@ -926,13 +866,64 @@
             .history-backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; }
         }
 
+
+
+        /* One-shot boot gate: the interface appears only when local media + preview are ready. */
+        #boot-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 999;
+            display: grid;
+            place-items: center;
+            background: #020202;
+            opacity: 1;
+            visibility: visible;
+            transition: opacity .32s ease, visibility .32s ease;
+        }
+
+        .boot-mark {
+            font-family: 'Syne', 'Arial Black', sans-serif;
+            font-size: clamp(18px, 4vw, 30px);
+            font-weight: 900;
+            letter-spacing: .22em;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(255,255,255,.18);
+            animation: bootPulse .9s ease-in-out infinite alternate;
+        }
+
+        @keyframes bootPulse {
+            from { opacity: .38; transform: scale(.985); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        body.booting .main-wrapper,
+        body.booting #photo-webs-container,
+        body.booting .scanline-overlay,
+        body.booting .ambient-glow {
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+
+        body:not(.booting) #boot-screen {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .main-wrapper,
+        #photo-webs-container,
+        .scanline-overlay {
+            transition: opacity .32s ease;
+        }
+
     </style>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
-<body>
+<body class="booting">
+    <div id="boot-screen" aria-hidden="true"><div class="boot-mark">SP1DER</div></div>
     <div class="scanline-overlay"></div>
 
     <div id="photo-webs-container"></div>
@@ -1012,14 +1003,57 @@
 
     <script>
         
+        const LOCAL_MEDIA_ASSETS = [
+            './assets/av8t7brd.png',
+            './assets/xllwx1bt.png',
+            './assets/tcbusgul.png',
+            './assets/bhocuany.png',
+            './assets/bkslqch8.png',
+            './assets/logo-192.png',
+            './assets/logo-512.png',
+            './assets/earth_atmos_2048.jpg'
+        ];
+
+        const bootReady = { assets: false, earth: false, orbitLogo: false, youtube: false };
+        let bootReleased = false;
+
+        function releaseBoot(force = false) {
+            if (bootReleased) return;
+            const ready = Object.values(bootReady).every(Boolean);
+            if (!ready && !force) return;
+            bootReleased = true;
+            document.body.classList.remove('booting');
+            const bootScreen = document.getElementById('boot-screen');
+            if (bootScreen) setTimeout(() => bootScreen.remove(), 420);
+        }
+
+        function markBootReady(key) {
+            if (key in bootReady) bootReady[key] = true;
+            releaseBoot(false);
+        }
+
+        function preloadLocalMedia() {
+            return Promise.all(LOCAL_MEDIA_ASSETS.map((src) => new Promise((resolve) => {
+                const img = new Image();
+                img.decoding = 'async';
+                img.onload = resolve;
+                img.onerror = resolve;
+                img.src = src;
+                if (img.complete) resolve();
+            }))).then(() => markBootReady('assets'));
+        }
+
+        preloadLocalMedia();
+        setTimeout(() => releaseBoot(true), 10000);
+
         const photoWebsContainer = document.getElementById('photo-webs-container');
 
         const realWebImages = [
-            "https://i.hizliresim.com/av8t7brd.png",
-            "https://i.hizliresim.com/xllwx1bt.png",
-            "https://i.hizliresim.com/tcbusgul.png",
-            "https://i.hizliresim.com/bhocuany.png",
-            "https://i.hizliresim.com/bkslqch8.png"
+            "./assets/av8t7brd.png",
+            "./assets/xllwx1bt.png",
+            "./assets/tcbusgul.png",
+            "./assets/bhocuany.png",
+            "./assets/bkslqch8.png"
         ];
 
         let photoWebElements = [];
@@ -1506,6 +1540,7 @@
         }
 
         function onPlayerError(event) {
+            markBootReady('youtube');
             if (currentLoadedVideoId) failedVideoIds.add(currentLoadedVideoId);
             actualPlayerStatePlaying = false;
             // Keep listener presence while the joined session skips/reloads a failed track.
@@ -1548,6 +1583,7 @@
         function onPlayerStateChange(event) {
             if (event.data === YT.PlayerState.PLAYING) {
                 actualPlayerStatePlaying = true;
+                markBootReady('youtube');
                 showStreamStatus('');
             } else if (event.data === YT.PlayerState.ENDED) {
                 actualPlayerStatePlaying = false;
@@ -1816,11 +1852,6 @@
         }
 
         const textureLoader = new THREE.TextureLoader();
-        const earthTextureSources = [
-            'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/textures/planets/earth_atmos_2048.jpg',
-            'https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/textures/planets/earth_atmos_2048.jpg'
-        ];
-
         const baseRadius = 1.35;
         const segments = renderQuality === 'high' ? 32 : renderQuality === 'balanced' ? 28 : 20;
         const geometry = new THREE.SphereGeometry(baseRadius, segments, segments);
@@ -1831,104 +1862,145 @@
             metalness: 0.0,
             clearcoat: 0.24,
             clearcoatRoughness: 0.44,
-            // No emissive/self-lighting: all visible shading comes from the shared point light.
             emissive: 0x000000,
             emissiveIntensity: 0
         });
 
-        function loadTextureWithFallback(urls, index = 0) {
-            if (index >= urls.length) {
-                console.warn('Earth texture could not be loaded from any source.');
-                return;
+        textureLoader.load(
+            './assets/earth_atmos_2048.jpg',
+            (texture) => {
+                texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+                if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
+                material.map = texture;
+                material.needsUpdate = true;
+                markBootReady('earth');
+            },
+            undefined,
+            () => {
+                console.warn('Local Earth texture failed to load.');
+                markBootReady('earth');
             }
-            textureLoader.load(
-                urls[index],
-                (texture) => {
-                    texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
-                    if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
-                    material.map = texture;
-                    material.emissiveMap = null;
-                    material.needsUpdate = true;
-                },
-                undefined,
-                () => loadTextureWithFallback(urls, index + 1)
-            );
-        }
-        loadTextureWithFallback(earthTextureSources);
+        );
+
         const globeMesh = new THREE.Mesh(geometry, material);
+        globeMesh.renderOrder = 0;
         scene.add(globeMesh);
 
+        // Real WebGL orbit logo: curved physical geometry + actual Z depth.
+        const orbitLogoRoot = new THREE.Group();
+        const orbitLogoSpin = new THREE.Group();
+        orbitLogoRoot.rotation.x = THREE.MathUtils.degToRad(-17);
+        orbitLogoRoot.rotation.z = THREE.MathUtils.degToRad(24);
+        orbitLogoRoot.add(orbitLogoSpin);
+        scene.add(orbitLogoRoot);
 
-        const ORBIT_LOGO_URL = 'https://i.hizliresim.com/dbqnjtaq.png';
-        const orbitLogoStage = document.createElement('div');
-        orbitLogoStage.id = 'orbit-logo-css3d-stage';
-        orbitLogoStage.setAttribute('aria-hidden', 'true');
+        const ORBIT_RADIUS = baseRadius + (renderQuality === 'low' ? 0.38 : 0.42);
+        const ORBIT_ARC = THREE.MathUtils.degToRad(renderQuality === 'low' ? 38 : renderQuality === 'balanced' ? 42 : 46);
+        const ORBIT_HEIGHT = renderQuality === 'low' ? 0.72 : renderQuality === 'balanced' ? 0.78 : 0.84;
+        const ORBIT_THICKNESS = renderQuality === 'low' ? 0.075 : renderQuality === 'balanced' ? 0.095 : 0.115;
+        const ORBIT_DEPTH_LAYERS = renderQuality === 'low' ? 5 : renderQuality === 'balanced' ? 7 : 9;
+        const ORBIT_RADIAL_SEGMENTS = renderQuality === 'low' ? 28 : renderQuality === 'balanced' ? 36 : 44;
+        const orbitLogoMaterials = [];
+        let orbitLogoFrontMaterial = null;
+        let orbitLogoShineMaterial = null;
+        let orbitLogoMeshReady = false;
 
-        const orbitLogoCssRoot = document.createElement('div');
-        orbitLogoCssRoot.id = 'orbit-logo-css3d';
-        orbitLogoStage.appendChild(orbitLogoCssRoot);
-        globeContainer.appendChild(orbitLogoStage);
+        function buildCurvedOrbitLogo(texture) {
+            const logoGroup = new THREE.Group();
+            const thetaStart = -ORBIT_ARC * 0.5;
 
-        const orbitCssSegments = [];
-        const ORBIT_SEGMENT_COUNT = renderQuality === 'low' ? 9 : renderQuality === 'balanced' ? 11 : 13;
-        const ORBIT_DEPTH_LAYERS = renderQuality === 'low' ? 4 : renderQuality === 'balanced' ? 6 : 8;
-        const ORBIT_LOGO_WIDTH = renderQuality === 'low' ? 126 : renderQuality === 'balanced' ? 142 : 154;
-        const ORBIT_LOGO_HEIGHT = ORBIT_LOGO_WIDTH;
-        const ORBIT_CURVE_ANGLE = THREE.MathUtils.degToRad(renderQuality === 'low' ? 52 : renderQuality === 'balanced' ? 58 : 64);
-        const ORBIT_CURVE_RADIUS = ORBIT_LOGO_WIDTH / ORBIT_CURVE_ANGLE;
-        const ORBIT_SEGMENT_BASE_WIDTH = ORBIT_LOGO_WIDTH / ORBIT_SEGMENT_COUNT;
-        const ORBIT_SEGMENT_OVERLAP = 1.8;
-        const ORBIT_EXTRUSION_STEP = renderQuality === 'low' ? 1.5 : 1.75;
-        const ORBIT_WORLD_RADIUS = baseRadius + 0.86;
-        const ORBIT_WORLD_TILT_X = THREE.MathUtils.degToRad(-17);
-        const ORBIT_WORLD_TILT_Z = THREE.MathUtils.degToRad(25);
-
-        function createOrbitCssPlane(className, segmentIndex, z) {
-            const plane = document.createElement('div');
-            plane.className = `orbit-logo-plane ${className}`;
-            plane.style.backgroundImage = `url("${ORBIT_LOGO_URL}")`;
-            plane.style.backgroundSize = `${ORBIT_LOGO_WIDTH}px ${ORBIT_LOGO_HEIGHT}px`;
-            plane.style.backgroundPosition = `${-(segmentIndex * ORBIT_SEGMENT_BASE_WIDTH - ORBIT_SEGMENT_OVERLAP * 0.5)}px 0px`;
-            plane.style.transform = `translateZ(${z}px)`;
-            return plane;
-        }
-
-        for (let i = 0; i < ORBIT_SEGMENT_COUNT; i++) {
-            const normalized = ((i + 0.5) / ORBIT_SEGMENT_COUNT) - 0.5;
-            const curveAngle = normalized * ORBIT_CURVE_ANGLE;
-            const segmentWidth = ORBIT_SEGMENT_BASE_WIDTH + ORBIT_SEGMENT_OVERLAP;
-            const x = Math.sin(curveAngle) * ORBIT_CURVE_RADIUS;
-            const z = (Math.cos(curveAngle) - 1) * ORBIT_CURVE_RADIUS;
-
-            const segment = document.createElement('div');
-            segment.className = 'orbit-logo-segment';
-            segment.style.width = `${segmentWidth}px`;
-            segment.style.height = `${ORBIT_LOGO_HEIGHT}px`;
-            segment.style.transform =
-                `translate3d(${(x - segmentWidth * 0.5).toFixed(3)}px, ${(-ORBIT_LOGO_HEIGHT * 0.5).toFixed(3)}px, ${z.toFixed(3)}px) ` +
-                `rotateY(${THREE.MathUtils.radToDeg(curveAngle).toFixed(3)}deg)`;
-
-            for (let d = ORBIT_DEPTH_LAYERS; d >= 1; d--) {
-                const depth = createOrbitCssPlane(
-                    `depth${d > Math.ceil(ORBIT_DEPTH_LAYERS * 0.55) ? ' depth-extra' : ''}`,
-                    i,
-                    -d * ORBIT_EXTRUSION_STEP
+            for (let i = 0; i < ORBIT_DEPTH_LAYERS; i++) {
+                const t = ORBIT_DEPTH_LAYERS === 1 ? 1 : i / (ORBIT_DEPTH_LAYERS - 1);
+                const radius = ORBIT_RADIUS - ORBIT_THICKNESS + ORBIT_THICKNESS * t;
+                const isFront = i === ORBIT_DEPTH_LAYERS - 1;
+                const layerGeometry = new THREE.CylinderGeometry(
+                    radius,
+                    radius,
+                    ORBIT_HEIGHT,
+                    ORBIT_RADIAL_SEGMENTS,
+                    1,
+                    true,
+                    thetaStart,
+                    ORBIT_ARC
                 );
-                segment.appendChild(depth);
+
+                const layerMaterial = new THREE.MeshPhysicalMaterial({
+                    map: texture,
+                    color: isFront ? 0xffffff : new THREE.Color().setHSL(0.58, 0.08, 0.19 + t * 0.14),
+                    alphaTest: 0.055,
+                    transparent: false,
+                    side: THREE.DoubleSide,
+                    depthTest: true,
+                    depthWrite: true,
+                    roughness: isFront ? 0.20 : 0.62,
+                    metalness: isFront ? 0.12 : 0.02,
+                    clearcoat: isFront ? 1.0 : 0.10,
+                    clearcoatRoughness: isFront ? 0.08 : 0.58,
+                    emissive: 0x000000,
+                    emissiveIntensity: 0
+                });
+
+                const layerMesh = new THREE.Mesh(layerGeometry, layerMaterial);
+                layerMesh.frustumCulled = false;
+                layerMesh.renderOrder = 1;
+                logoGroup.add(layerMesh);
+                orbitLogoMaterials.push(layerMaterial);
+                if (isFront) orbitLogoFrontMaterial = layerMaterial;
             }
 
-            const face = createOrbitCssPlane('face', i, 0);
-            const shine = createOrbitCssPlane('shine', i, 1.15);
-            segment.appendChild(face);
-            segment.appendChild(shine);
-            orbitLogoCssRoot.appendChild(segment);
+            // A very thin outer highlight shell uses the same alpha silhouette and light source.
+            const shineGeometry = new THREE.CylinderGeometry(
+                ORBIT_RADIUS + 0.006,
+                ORBIT_RADIUS + 0.006,
+                ORBIT_HEIGHT * 1.002,
+                ORBIT_RADIAL_SEGMENTS,
+                1,
+                true,
+                thetaStart,
+                ORBIT_ARC
+            );
+            const shineMaterial = new THREE.MeshPhysicalMaterial({
+                map: texture,
+                color: 0xeaf5ff,
+                alphaTest: 0.055,
+                transparent: true,
+                opacity: 0.10,
+                side: THREE.DoubleSide,
+                depthTest: true,
+                depthWrite: false,
+                roughness: 0.06,
+                metalness: 0.28,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.04
+            });
+            orbitLogoShineMaterial = shineMaterial;
+            const shineMesh = new THREE.Mesh(shineGeometry, shineMaterial);
+            shineMesh.frustumCulled = false;
+            shineMesh.renderOrder = 2;
+            shineMesh.userData.isOrbitShine = true;
+            logoGroup.add(shineMesh);
 
-            orbitCssSegments.push({ segment, face, shine, curveAngle });
+            orbitLogoSpin.add(logoGroup);
+            orbitLogoMeshReady = true;
         }
 
-        const orbitProjectedPoint = new THREE.Vector3();
-        const orbitWorldPoint = new THREE.Vector3();
-        const orbitTiltEuler = new THREE.Euler(ORBIT_WORLD_TILT_X, 0, ORBIT_WORLD_TILT_Z, 'XYZ');
+        textureLoader.load(
+            './assets/logo-512.png',
+            (texture) => {
+                texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+                texture.wrapS = THREE.ClampToEdgeWrapping;
+                texture.wrapT = THREE.ClampToEdgeWrapping;
+                texture.needsUpdate = true;
+                if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
+                buildCurvedOrbitLogo(texture);
+                markBootReady('orbitLogo');
+            },
+            undefined,
+            () => {
+                console.warn('Local orbit logo texture failed to load.');
+                markBootReady('orbitLogo');
+            }
+        );
 
         // Main point light for the Earth.
         const SHARED_LIGHT_POSITION = new THREE.Vector3(4.9, 3.35, 6.25);
@@ -1941,7 +2013,9 @@
         keyLight.position.copy(SHARED_LIGHT_POSITION);
         scene.add(keyLight);
 
-        const orbitLogoLightAzimuth = Math.atan2(SHARED_LIGHT_POSITION.x, SHARED_LIGHT_POSITION.z);
+        const orbitCenterVector = new THREE.Vector3();
+        const orbitYAxis = new THREE.Vector3(0, 1, 0);
+        const orbitLightDirection = SHARED_LIGHT_POSITION.clone().normalize();
 
         let lastTime = performance.now();
         let lastRenderTime = lastTime;
@@ -1986,47 +2060,31 @@
             const globeSpeed = isPlayingState ? 0.52 : 0.13;
             globeMesh.rotation.y += globeSpeed * deltaTime;
 
-            const orbitSpeed = isPlayingState ? 0.72 : 0.24;
-            const orbitAngle = (currentTime * 0.001 * orbitSpeed) % (Math.PI * 2);
+            const orbitSpeed = isPlayingState ? 0.64 : 0.22;
+            if (orbitLogoMeshReady) {
+                orbitLogoSpin.rotation.y += orbitSpeed * deltaTime;
+                orbitLogoRoot.rotation.x = THREE.MathUtils.degToRad(-17) + Math.sin(currentTime * 0.00035) * 0.018;
+                orbitLogoRoot.rotation.z = THREE.MathUtils.degToRad(24) + Math.cos(currentTime * 0.00031) * 0.018;
 
-            orbitWorldPoint.set(
-                Math.sin(orbitAngle) * ORBIT_WORLD_RADIUS,
-                0,
-                Math.cos(orbitAngle) * ORBIT_WORLD_RADIUS
-            );
-            orbitWorldPoint.applyEuler(orbitTiltEuler);
-            orbitWorldPoint.y += Math.sin(currentTime * 0.0009) * 0.035;
+                // When the logo section is physically behind Earth, hide the whole mark;
+                // otherwise WebGL depth-testing handles the transition at the limb.
+                orbitCenterVector.set(0, 0, ORBIT_RADIUS)
+                    .applyAxisAngle(orbitYAxis, orbitLogoSpin.rotation.y)
+                    .applyEuler(orbitLogoRoot.rotation);
+                orbitLogoSpin.visible = orbitCenterVector.z > -0.12;
 
-            orbitProjectedPoint.copy(orbitWorldPoint).project(camera);
-            const orbitScreenX = (orbitProjectedPoint.x * 0.5 + 0.5) * globeContainer.clientWidth;
-            const orbitScreenY = (-orbitProjectedPoint.y * 0.5 + 0.5) * globeContainer.clientHeight;
-            const depthNorm = THREE.MathUtils.clamp(orbitWorldPoint.z / ORBIT_WORLD_RADIUS, -1, 1);
-            const frontVisibility = THREE.MathUtils.smoothstep(depthNorm, 0.015, 0.20);
-            const edgeVisibility = THREE.MathUtils.smoothstep(Math.abs(depthNorm), 0.02, 0.16);
-            const orbitOpacity = frontVisibility * (0.72 + 0.28 * edgeVisibility);
-            const perspectiveScale = 0.82 + Math.max(0, depthNorm) * 0.18;
-            const viewportScale = THREE.MathUtils.clamp(Math.min(globeContainer.clientWidth, globeContainer.clientHeight) / 360, 0.72, 1.08);
-            const orbitYaw = THREE.MathUtils.radToDeg(orbitAngle) * 0.72;
-            const orbitRoll = 24 + Math.sin(orbitAngle * 0.72) * 4.5;
-            const orbitPitch = -15 + Math.cos(orbitAngle * 0.56) * 3.2;
+                const lightFacing = Math.max(0, orbitCenterVector.normalize().dot(orbitLightDirection));
+                const specular = Math.pow(lightFacing, 6.5);
 
-            orbitLogoCssRoot.style.opacity = orbitOpacity.toFixed(3);
-            orbitLogoCssRoot.style.visibility = orbitOpacity < 0.015 ? 'hidden' : 'visible';
-            orbitLogoCssRoot.style.transform =
-                `translate3d(${orbitScreenX.toFixed(2)}px, ${orbitScreenY.toFixed(2)}px, 0) ` +
-                `rotateX(${orbitPitch.toFixed(2)}deg) rotateY(${orbitYaw.toFixed(2)}deg) rotateZ(${orbitRoll.toFixed(2)}deg) ` +
-                `scale(${(perspectiveScale * viewportScale).toFixed(4)})`;
+                if (orbitLogoShineMaterial) {
+                    orbitLogoShineMaterial.opacity = 0.045 + specular * 0.30;
+                }
 
-            orbitCssSegments.forEach(({ segment, face, shine, curveAngle }) => {
-                const surfaceAzimuth = orbitAngle + curveAngle;
-                const lightDot = Math.max(0, Math.cos(surfaceAzimuth - orbitLogoLightAzimuth));
-                const specular = Math.pow(lightDot, 7.5);
-                face.style.setProperty('--orbit-face-brightness', (0.74 + lightDot * 0.48).toFixed(3));
-                face.style.setProperty('--orbit-glow', `${(2.5 + specular * 8.5).toFixed(2)}px`);
-                face.style.setProperty('--orbit-glow-alpha', (0.08 + specular * 0.28).toFixed(3));
-                shine.style.setProperty('--orbit-shine', (0.018 + specular * 0.42).toFixed(3));
-                segment.style.opacity = (0.90 + lightDot * 0.10).toFixed(3);
-            });
+                if (orbitLogoFrontMaterial) {
+                    orbitLogoFrontMaterial.clearcoat = 0.92 + specular * 0.08;
+                    orbitLogoFrontMaterial.roughness = 0.24 - specular * 0.12;
+                }
+            }
 
             animatePhotoWebs(deltaTime);
             renderer.render(scene, camera);
@@ -2216,7 +2274,7 @@
         
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=47', { updateViaCache: 'none' })
+                navigator.serviceWorker.register('./sw.js?v=53', { updateViaCache: 'none' })
                     .then((registration) => registration.update())
                     .catch((err) => { console.warn('Service worker registration failed:', err); });
             });
