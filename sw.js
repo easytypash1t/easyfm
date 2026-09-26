@@ -1,5 +1,5 @@
-const STATIC_CACHE = 'sp1der-static-v44';
-const RUNTIME_CACHE = 'sp1der-runtime-v44';
+const STATIC_CACHE = 'sp1der-static-v45';
+const RUNTIME_CACHE = 'sp1der-runtime-v45';
 const APP_SHELL = [
   './',
   './index.html',
@@ -87,7 +87,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  
   if (url.origin === self.location.origin) {
     event.respondWith(
       caches.match(request).then((cached) => {
