@@ -1,5 +1,5 @@
-const STATIC_CACHE = 'sp1der-static-v47';
-const RUNTIME_CACHE = 'sp1der-runtime-v47';
+const STATIC_CACHE = 'sp1der-static-v48';
+const RUNTIME_CACHE = 'sp1der-runtime-v48';
 const APP_SHELL = [
   './',
   './index.html',
