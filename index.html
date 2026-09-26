@@ -1952,34 +1952,38 @@
                 depthTest: true,
                 depthWrite: true,
                 side: THREE.FrontSide,
-                roughness: 0.20,
-                metalness: 0.18,
-                clearcoat: 1.0,
-                clearcoatRoughness: 0.07,
-                reflectivity: 1.0
+                roughness: 0.56,
+                metalness: 0.0,
+                clearcoat: 0.24,
+                clearcoatRoughness: 0.44,
+                emissive: 0x000000,
+                emissiveIntensity: 0
             });
 
             const backMaterial = new THREE.MeshPhysicalMaterial({
-                color: 0x4a515a,
+                color: 0x30343a,
                 depthTest: true,
                 depthWrite: true,
                 side: THREE.FrontSide,
-                roughness: 0.38,
-                metalness: 0.42,
-                clearcoat: 0.30,
-                clearcoatRoughness: 0.28
+                roughness: 0.66,
+                metalness: 0.0,
+                clearcoat: 0.10,
+                clearcoatRoughness: 0.58,
+                emissive: 0x000000,
+                emissiveIntensity: 0
             });
 
             const sideMaterial = new THREE.MeshPhysicalMaterial({
-                color: 0x5e6670,
+                color: 0x343941,
                 depthTest: true,
                 depthWrite: true,
                 side: THREE.DoubleSide,
-                roughness: 0.32,
-                metalness: 0.48,
-                clearcoat: 0.42,
-                clearcoatRoughness: 0.22,
-                flatShading: true
+                roughness: 0.70,
+                metalness: 0.0,
+                clearcoat: 0.08,
+                clearcoatRoughness: 0.62,
+                emissive: 0x000000,
+                emissiveIntensity: 0
             });
 
             const sideMesh = new THREE.Mesh(sideGeometry, sideMaterial);
