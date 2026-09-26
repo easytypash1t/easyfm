@@ -22,6 +22,7 @@
     <meta property="og:image:width" content="512">
     <meta property="og:image:height" content="512">
     <meta property="og:image:alt" content="SP1DER">
+    <!-- X still reads the legacy twitter:* card metadata names. -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="SP1DER">
     <meta name="twitter:description" content="SP1DER live music stream.">
@@ -1670,7 +1671,7 @@
         if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
         if ('physicallyCorrectLights' in renderer) renderer.physicallyCorrectLights = true;
         if (THREE.ACESFilmicToneMapping) renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = renderQuality === 'low' ? 1.02 : 1.08;
+        renderer.toneMappingExposure = renderQuality === 'low' ? 0.88 : 0.92;
 
         const pixelRatioCap = renderQuality === 'high' ? 1.15 : renderQuality === 'balanced' ? 1.0 : 0.85;
         const minimumPixelRatio = renderQuality === 'high' ? 0.82 : renderQuality === 'balanced' ? 0.76 : 0.68;
@@ -1711,8 +1712,8 @@
         const geometry = new THREE.SphereGeometry(baseRadius, segments, segments);
         const material = new THREE.MeshStandardMaterial({
             map: null,
-            roughness: 0.68,
-            metalness: 0.015
+            roughness: 0.96,
+            metalness: 0.01
         });
 
         function loadTextureWithFallback(urls, index = 0) {
@@ -1735,30 +1736,30 @@
         const globeMesh = new THREE.Mesh(geometry, material);
         scene.add(globeMesh);
 
-        // One fixed "sun" point lights BOTH the Earth and the orbiting SP1DER emblem.
-        // A very small neutral fill keeps the night side readable without creating a second
-        // directional highlight. The visible highlight/reflection direction still comes from sunLight.
-        const ambientLight = new THREE.AmbientLight(0xffffff, renderQuality === 'low' ? 0.20 : 0.24);
+        // One fixed sun-like point lights both Earth and the orbiting SP1DER emblem.
+        // A very small ambient fill prevents the unlit hemisphere from clipping to pure black
+        // without washing the scene toward white.
+        const ambientLight = new THREE.AmbientLight(0x8f98a3, 0.10);
         scene.add(ambientLight);
 
-        // physicallyCorrectLights is enabled above, so a PointLight needs substantially more
-        // intensity than the old non-physical setup. Keep one sun position and let both materials
-        // react to this exact same point in space.
-        const sunLight = new THREE.PointLight(0xffffff, renderQuality === 'low' ? 155 : renderQuality === 'balanced' ? 205 : 235, 0, 2);
-        sunLight.position.set(4.35, 3.15, 4.75);
+        const sunLight = new THREE.PointLight(
+            0xffead2,
+            renderQuality === 'low' ? 90 : renderQuality === 'balanced' ? 100 : 110,
+            0,
+            2.0
+        );
+        sunLight.position.set(4.4, 2.8, 4.9);
         scene.add(sunLight);
 
         // Single orbiting SP1DER logo. The transparent PNG is treated as a
         // metallic 3D emblem: stacked alpha-cut planes provide thickness,
         // while a procedural environment map gives the chrome face reflections.
         const SP1DER_LOGO_TEXTURES = [
-            'https://i.hizliresim.com/cd44fi2l.png',
-            'https://i.hizliresim.com/cd44fi2l.png?v=2'
+            'https://i.hizliresim.com/cd44fi2l.png'
         ];
 
         let orbitLogoRig = null;
         let orbitLogoBody = null;
-        let orbitLogoShineMaterial = null;
         let orbitLogoAngle = 0;
         const orbitLogoRadius = baseRadius + 0.38;
 
@@ -1827,7 +1828,6 @@
             scene.remove(orbitLogoRig);
             orbitLogoRig = null;
             orbitLogoBody = null;
-            orbitLogoShineMaterial = null;
         }
 
         // True curved ribbon geometry: the logo surface follows the globe's radius.
@@ -1845,57 +1845,6 @@
             );
             geometry.computeVertexNormals();
             return geometry;
-        }
-
-        function createReflectionSweepMaterial(texture) {
-            return new THREE.ShaderMaterial({
-                uniforms: {
-                    uLogo: { value: texture },
-                    uTime: { value: 0 },
-                    uStrength: { value: renderQuality === 'low' ? 0.24 : 0.38 }
-                },
-                vertexShader: `
-                    varying vec2 vUv;
-                    varying vec3 vNormalView;
-                    varying vec3 vViewDir;
-                    void main() {
-                        vUv = uv;
-                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                        vNormalView = normalize(normalMatrix * normal);
-                        vViewDir = normalize(-mvPosition.xyz);
-                        gl_Position = projectionMatrix * mvPosition;
-                    }
-                `,
-                fragmentShader: `
-                    uniform sampler2D uLogo;
-                    uniform float uTime;
-                    uniform float uStrength;
-                    varying vec2 vUv;
-                    varying vec3 vNormalView;
-                    varying vec3 vViewDir;
-                    void main() {
-                        vec4 logo = texture2D(uLogo, vUv);
-                        if (logo.a < 0.055) discard;
-
-                        float ndv = clamp(dot(normalize(vNormalView), normalize(vViewDir)), 0.0, 1.0);
-                        float fresnel = pow(1.0 - ndv, 2.25);
-
-                        float phase = fract(vUv.x * 0.92 + vUv.y * 0.34 - uTime * 0.18);
-                        float band = 1.0 - smoothstep(0.035, 0.16, abs(phase - 0.50));
-                        float fine = 1.0 - smoothstep(0.010, 0.045, abs(phase - 0.50));
-                        float light = (band * 0.52 + fine * 0.92 + fresnel * 0.34) * uStrength;
-
-                        vec3 chrome = mix(vec3(0.62, 0.66, 0.70), vec3(1.0), clamp(light * 1.35, 0.0, 1.0));
-                        float alpha = logo.a * clamp(band * 0.16 + fine * 0.28 + fresnel * 0.10, 0.0, 0.34);
-                        gl_FragColor = vec4(chrome * light, alpha);
-                    }
-                `,
-                transparent: true,
-                depthTest: true,
-                depthWrite: false,
-                side: THREE.DoubleSide,
-                blending: THREE.AdditiveBlending
-            });
         }
 
         function buildOrbitLogo(texture) {
@@ -1921,26 +1870,27 @@
             orbitLogoRig.add(orbitLogoBody);
 
             const qualityScale = renderQuality === 'low' ? 0.91 : renderQuality === 'balanced' ? 0.97 : 1.0;
-            const shellHeight = 1.52 * qualityScale;
-            // Slightly smaller footprint while keeping the wrap-around silhouette.
-            const thetaLength = 1.92 * qualityScale;
-            // High curve resolution + fewer, thinner depth shells reduce visible side banding.
-            const radialSegments = renderQuality === 'low' ? 96 : renderQuality === 'balanced' ? 160 : 240;
-            const depthLayers = renderQuality === 'low' ? 6 : renderQuality === 'balanced' ? 8 : 10;
-            const totalDepth = renderQuality === 'low' ? 0.046 : renderQuality === 'balanced' ? 0.056 : 0.064;
+            const shellHeight = 1.56 * qualityScale;
+            // Slightly smaller than the original while preserving the wrap-around silhouette.
+            const thetaLength = 1.96 * qualityScale;
+            // More radial resolution smooths the curved outer edge; shallower, denser depth slices
+            // reduce the visible striped/banded look on the 3D sides.
+            const radialSegments = renderQuality === 'low' ? 112 : renderQuality === 'balanced' ? 176 : 256;
+            const depthLayers = renderQuality === 'low' ? 10 : renderQuality === 'balanced' ? 14 : 18;
+            const totalDepth = renderQuality === 'low' ? 0.050 : renderQuality === 'balanced' ? 0.060 : 0.068;
 
             const frontMaterial = new THREE.MeshPhysicalMaterial({
                 map: texture,
                 bumpMap: texture,
-                bumpScale: renderQuality === 'low' ? 0.008 : 0.014,
-                color: 0xd9dde2,
-                metalness: 0.88,
-                roughness: 0.20,
-                clearcoat: 0.62,
-                clearcoatRoughness: 0.09,
-                reflectivity: 0.90,
+                bumpScale: renderQuality === 'low' ? 0.006 : 0.012,
+                color: 0xbcc2c8,
+                metalness: 0.78,
+                roughness: 0.27,
+                clearcoat: 0.42,
+                clearcoatRoughness: 0.15,
+                reflectivity: 0.72,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.52 : 0.72,
+                envMapIntensity: renderQuality === 'low' ? 0.28 : 0.48,
                 alphaTest: 0.10,
                 transparent: false,
                 side: THREE.DoubleSide,
@@ -1950,14 +1900,14 @@
 
             const sideMaterial = new THREE.MeshPhysicalMaterial({
                 map: texture,
-                color: 0x3a3f45,
-                metalness: 0.76,
+                color: 0x2b3035,
+                metalness: 0.68,
                 roughness: 0.46,
                 clearcoat: 0.24,
                 clearcoatRoughness: 0.24,
-                reflectivity: 0.68,
+                reflectivity: 0.60,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.24 : 0.34,
+                envMapIntensity: renderQuality === 'low' ? 0.18 : 0.30,
                 alphaTest: 0.10,
                 transparent: false,
                 side: THREE.DoubleSide,
@@ -1967,14 +1917,14 @@
 
             const bevelMaterial = new THREE.MeshPhysicalMaterial({
                 map: texture,
-                color: 0xc8cdd3,
-                metalness: 0.90,
-                roughness: 0.18,
-                clearcoat: 0.58,
-                clearcoatRoughness: 0.09,
-                reflectivity: 0.92,
+                color: 0xaeb5bc,
+                metalness: 0.80,
+                roughness: 0.24,
+                clearcoat: 0.44,
+                clearcoatRoughness: 0.14,
+                reflectivity: 0.74,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.42 : 0.58,
+                envMapIntensity: renderQuality === 'low' ? 0.30 : 0.52,
                 alphaTest: 0.10,
                 transparent: false,
                 side: THREE.DoubleSide,
@@ -1984,13 +1934,13 @@
 
             const backMaterial = new THREE.MeshPhysicalMaterial({
                 map: texture,
-                color: 0x252a30,
-                metalness: 0.86,
-                roughness: 0.38,
-                clearcoat: 0.30,
-                clearcoatRoughness: 0.22,
+                color: 0x24282d,
+                metalness: 0.66,
+                roughness: 0.48,
+                clearcoat: 0.18,
+                clearcoatRoughness: 0.28,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: 0.26,
+                envMapIntensity: 0.22,
                 alphaTest: 0.10,
                 transparent: false,
                 side: THREE.DoubleSide,
@@ -2002,8 +1952,8 @@
             for (let i = depthLayers; i >= 1; i--) {
                 const p = i / depthLayers;
                 const layerRadius = orbitLogoRadius - p * totalDepth;
-                const layerHeight = shellHeight * (1.0 - p * 0.006);
-                const layerTheta = thetaLength * (1.0 - p * 0.004);
+                const layerHeight = shellHeight * (1.0 - p * 0.045);
+                const layerTheta = thetaLength * (1.0 - p * 0.030);
                 const g = createCurvedLogoGeometry(layerRadius, layerHeight, layerTheta, radialSegments);
                 const m = new THREE.Mesh(g, sideMaterial);
                 m.renderOrder = 1;
@@ -2025,7 +1975,7 @@
             const bevelSteps = 1;
             for (let i = 0; i < bevelSteps; i++) {
                 const t = 0;
-                const r = orbitLogoRadius + 0.008;
+                const r = orbitLogoRadius + 0.007;
                 const h = shellHeight * 1.004;
                 const th = thetaLength * 1.003;
                 const g = createCurvedLogoGeometry(r, h, th, radialSegments);
@@ -2046,10 +1996,8 @@
             front.renderOrder = 3;
             orbitLogoBody.add(front);
 
-
-            // No fake moving shine or logo-attached lamp: the physical face/edge materials
-            // now receive their highlight from the same fixed sunLight as the Earth.
-            orbitLogoShineMaterial = null;
+            // No separate logo-only light or additive white sweep: the emblem is lit by sunLight,
+            // the same fixed source that lights the Earth.
         }
 
         function loadOrbitLogoTexture(urls, index = 0) {
