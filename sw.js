@@ -1,9 +1,17 @@
-const STATIC_CACHE = 'sp1der-static-v52';
-const RUNTIME_CACHE = 'sp1der-runtime-v52';
+const STATIC_CACHE = 'sp1der-static-v53';
+const RUNTIME_CACHE = 'sp1der-runtime-v53';
 const APP_SHELL = [
   './',
   './index.html',
-  './manifest.webmanifest'
+  './manifest.webmanifest',
+  './assets/logo-192.png',
+  './assets/logo-512.png',
+  './assets/earth_atmos_2048.jpg',
+  './assets/av8t7brd.png',
+  './assets/xllwx1bt.png',
+  './assets/tcbusgul.png',
+  './assets/bhocuany.png',
+  './assets/bkslqch8.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -40,11 +48,7 @@ function isStaticDependency(request, url) {
     'fonts.gstatic.com',
     'cdnjs.cloudflare.com',
     'cdn.jsdelivr.net',
-    'www.gstatic.com',
-    'raw.githubusercontent.com',
-    'i.hizliresim.com',
-    'images.weserv.nl',
-    'wsrv.nl'
+    'www.gstatic.com'
   ];
   return allowedHosts.includes(url.hostname) &&
          ['script', 'style', 'font', 'image'].includes(request.destination);
