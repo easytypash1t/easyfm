@@ -582,7 +582,7 @@
         .start-btn::before { content:""; position:absolute; inset:4px; border-radius:inherit; border:1px solid rgba(0,0,0,.13); pointer-events:none; }
         .start-btn:hover { transform:translateY(-2px) scale(1.035); box-shadow:0 16px 42px rgba(0,0,0,.68),0 0 34px rgba(255,255,255,.24),inset 0 1px 0 #fff; }
         .start-btn:active { transform:translateY(0) scale(.985); }
-        .ambient-glow { background:radial-gradient(circle at 50% 48%, rgba(255,255,255,.11), rgba(100,140,255,.035) 35%, transparent 68%); filter:blur(52px); opacity:.65; transform:translate(-50%,-50%) scale(calc(1 + var(--energy))); }
+        .ambient-glow { display:none !important; }
         body.playing .video-container { box-shadow:0 24px 80px rgba(0,0,0,.68),0 0 45px rgba(255,255,255,.055),inset 0 1px 0 rgba(255,255,255,.08); }
         body.playing .now-playing-card { box-shadow:0 18px 55px rgba(0,0,0,.7),0 0 26px rgba(255,255,255,.04); }
         html[data-quality="balanced"] .badge, html[data-quality="balanced"] .volume-control-box, html[data-quality="balanced"] .history-toggle, html[data-quality="balanced"] .now-playing-card { backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
@@ -1769,7 +1769,7 @@
         let orbitLogoRig = null;
         let orbitLogoBody = null;
         let orbitLogoAngle = -0.34;
-        const orbitLogoRadius = baseRadius + 0.72;
+        const orbitLogoRadius = baseRadius + 1.05;
 
         function createChromeEnvironmentMap() {
             const makeFace = (direction = 1, cool = false) => {
@@ -1877,24 +1877,24 @@
             orbitLogoRig.add(orbitLogoBody);
 
             const qualityScale = renderQuality === 'low' ? 0.90 : renderQuality === 'balanced' ? 0.96 : 1.0;
-            const logoWidth = 1.42 * qualityScale;
-            const logoHeight = 1.42 * qualityScale;
+            const logoWidth = 1.70 * qualityScale;
+            const logoHeight = 1.70 * qualityScale;
             const depth = renderQuality === 'low' ? 0.055 : 0.075;
             const layers = renderQuality === 'low' ? 5 : renderQuality === 'balanced' ? 7 : 9;
             const planeGeometry = new THREE.PlaneGeometry(logoWidth, logoHeight, 1, 1);
 
             const faceMaterial = new THREE.MeshPhysicalMaterial({
                 alphaMap: texture,
-                color: 0xb8c0c7,
+                color: 0xe2e7eb,
                 metalness: 0.88,
                 roughness: 0.24,
                 clearcoat: 0.28,
                 clearcoatRoughness: 0.18,
                 reflectivity: 0.72,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.28 : 0.42,
-                alphaTest: 0.055,
-                transparent: false,
+                envMapIntensity: renderQuality === 'low' ? 0.42 : 0.62,
+                alphaTest: 0.025,
+                transparent: true,
                 side: THREE.DoubleSide,
                 depthTest: true,
                 depthWrite: true
@@ -1902,16 +1902,16 @@
 
             const edgeMaterial = new THREE.MeshPhysicalMaterial({
                 alphaMap: texture,
-                color: 0x59636c,
+                color: 0x7d8790,
                 metalness: 0.82,
                 roughness: 0.34,
                 clearcoat: 0.16,
                 clearcoatRoughness: 0.24,
                 reflectivity: 0.60,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.20 : 0.32,
-                alphaTest: 0.055,
-                transparent: false,
+                envMapIntensity: renderQuality === 'low' ? 0.30 : 0.46,
+                alphaTest: 0.025,
+                transparent: true,
                 side: THREE.DoubleSide,
                 depthTest: true,
                 depthWrite: true
@@ -2145,9 +2145,10 @@
                 orbitLogoRig.rotation.x = -0.10 + Math.sin(orbitLogoAngle * 0.34) * 0.016;
                 orbitLogoRig.rotation.z = 0.045 + Math.cos(orbitLogoAngle * 0.27) * 0.012;
 
-                orbitLogoBody.rotation.y = Math.sin(orbitLogoAngle * 0.52) * 0.028;
-                orbitLogoBody.rotation.x = -0.05 + Math.cos(orbitLogoAngle * 0.72) * 0.022;
-                orbitLogoBody.rotation.z = Math.sin(orbitLogoAngle * 0.61) * 0.014;
+                // Keep the 3D emblem facing the viewer while its position genuinely orbits the globe.
+                // Without this, a PlaneGeometry logo spends much of the orbit edge-on and appears to vanish.
+                orbitLogoBody.lookAt(camera.position);
+                orbitLogoBody.rotation.z += Math.sin(orbitLogoAngle * 0.61) * 0.010;
 
             }
 
@@ -2316,7 +2317,7 @@
         
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js').catch((err) => {
+                navigator.serviceWorker.register('./sw.js?v=37').catch((err) => {
                     console.warn('Service worker registration failed:', err);
                 });
             });
