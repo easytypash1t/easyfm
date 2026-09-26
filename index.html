@@ -201,6 +201,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            perspective: 900px;
+            perspective-origin: 50% 50%;
+            transform-style: preserve-3d;
         }
 
         #globe-3d-container canvas {
@@ -217,13 +220,15 @@
             position: absolute;
             left: 50%;
             top: 50%;
-            width: clamp(92px, 27%, 158px);
+            width: clamp(150px, 39%, 228px);
             aspect-ratio: 1 / 1;
             pointer-events: none;
             transform-style: preserve-3d;
             transform-origin: 50% 50%;
             will-change: transform, opacity, filter;
             z-index: 4;
+            --logo-light: 1;
+            --logo-reflect: .18;
         }
 
         .orbit-logo-dom img {
@@ -238,25 +243,26 @@
         }
 
         .orbit-logo-dom .orbit-logo-depth {
-            filter: grayscale(1) brightness(.38) contrast(1.55);
-            opacity: .70;
+            filter: grayscale(1) brightness(calc(.20 + var(--logo-light) * .20)) contrast(1.85);
+            opacity: .82;
         }
 
         .orbit-logo-dom .orbit-logo-face {
-            filter: grayscale(.20) saturate(.70) contrast(1.22) brightness(1.12)
-                    drop-shadow(0 5px 7px rgba(0,0,0,.72))
-                    drop-shadow(0 0 10px rgba(205,220,240,.18));
+            filter: grayscale(.12) saturate(.82) contrast(1.28) brightness(calc(.72 + var(--logo-light) * .48))
+                    drop-shadow(0 8px 10px rgba(0,0,0,.78))
+                    drop-shadow(0 0 13px rgba(210,225,245,.16));
         }
 
         .orbit-logo-dom .orbit-logo-reflection {
-            filter: grayscale(1) brightness(2.05) contrast(1.35);
+            filter: grayscale(1) brightness(2.7) contrast(1.6);
             mix-blend-mode: screen;
-            opacity: .20;
-            transform: translate3d(-1px,-2px,12px) scale(.995);
+            opacity: var(--logo-reflect);
+            clip-path: polygon(34% 0, 58% 0, 44% 100%, 20% 100%);
+            transform: translate3d(2px,-3px,28px) scale(.995);
         }
 
         @media (max-width: 600px) {
-            .orbit-logo-dom { width: clamp(78px, 29%, 118px); }
+            .orbit-logo-dom { width: clamp(118px, 38%, 172px); }
         }
 
         .status-bar {
@@ -1481,7 +1487,7 @@
         function onPlayerError(event) {
             if (currentLoadedVideoId) failedVideoIds.add(currentLoadedVideoId);
             actualPlayerStatePlaying = false;
-            setListeningPresence(false);
+            // Keep listener presence while the joined session skips/reloads a failed track.
             updateAudioVisualState();
             showStreamStatus(`TRACK UNAVAILABLE · SKIPPING (${event.data || 'ERR'})`, 2600);
 
@@ -1521,23 +1527,20 @@
         function onPlayerStateChange(event) {
             if (event.data === YT.PlayerState.PLAYING) {
                 actualPlayerStatePlaying = true;
-                setListeningPresence(userHasClicked);
                 showStreamStatus('');
             } else if (event.data === YT.PlayerState.ENDED) {
                 actualPlayerStatePlaying = false;
-                setListeningPresence(false);
                 syncToLiveStream();
             } else if (event.data === YT.PlayerState.PAUSED ||
                        event.data === YT.PlayerState.CUED ||
-                       event.data === YT.PlayerState.UNSTARTED) {
+                       event.data === YT.PlayerState.UNSTARTED ||
+                       event.data === YT.PlayerState.BUFFERING) {
                 actualPlayerStatePlaying = false;
-                setListeningPresence(false);
-            } else if (event.data === YT.PlayerState.BUFFERING) {
-                actualPlayerStatePlaying = false;
-                // Keep presence while a joined listener is briefly buffering.
             } else {
                 actualPlayerStatePlaying = false;
             }
+            // Firebase presence intentionally does NOT follow these transient player states.
+            // A listener joins once with JOIN LIVE and leaves when the page/session closes.
             updateAudioVisualState();
         }
 
@@ -1580,6 +1583,8 @@
             if (e && e.cancelable) e.preventDefault();
             if (userHasClicked) return;
             userHasClicked = true;
+            // Count the joined session once; do not remove/re-add it on YouTube state changes.
+            setListeningPresence(true);
 
             const volumeBox = document.getElementById('volume-box');
             volumeBox.classList.remove('disabled');
@@ -1755,12 +1760,14 @@
         const baseRadius = 1.35;
         const segments = renderQuality === 'high' ? 32 : renderQuality === 'balanced' ? 28 : 20;
         const geometry = new THREE.SphereGeometry(baseRadius, segments, segments);
-        const material = new THREE.MeshStandardMaterial({
+        const material = new THREE.MeshPhysicalMaterial({
             map: null,
             color: 0xffffff,
-            roughness: 0.82,
+            roughness: 0.64,
             metalness: 0.0,
-            // No emissive/self-lighting: the texture is shaded by the shared sun.
+            clearcoat: 0.10,
+            clearcoatRoughness: 0.72,
+            // No emissive/self-lighting: all visible shading comes from the shared point light.
             emissive: 0x000000,
             emissiveIntensity: 0
         });
@@ -1787,15 +1794,16 @@
         const globeMesh = new THREE.Mesh(geometry, material);
         scene.add(globeMesh);
 
-        // A single shared point source lights both the Earth and the orbiting logo.
-        // Neutral daylight avoids the old yellow cast without bleaching the texture.
+        // ONE shared point source. The Earth uses it physically in Three.js;
+        // the DOM logo below derives its brightness/reflection from this exact same position.
+        const SHARED_LIGHT_POSITION = new THREE.Vector3(4.8, 3.0, 5.8);
         const keyLight = new THREE.PointLight(
-            0xeaf2ff,
-            renderQuality === 'low' ? 2.65 : renderQuality === 'balanced' ? 2.90 : 3.15,
+            0xf1f6ff,
+            renderQuality === 'low' ? 2.75 : renderQuality === 'balanced' ? 3.00 : 3.25,
             0,
             2
         );
-        keyLight.position.set(4.8, 3.0, 5.8);
+        keyLight.position.copy(SHARED_LIGHT_POSITION);
         scene.add(keyLight);
 
         // --- RELIABLE ORBITING SP1DER LOGO ---
@@ -1813,15 +1821,18 @@
         orbitLogoDom.setAttribute('aria-hidden', 'true');
 
         const orbitLogoLayers = [];
-        for (let i = 0; i < 7; i++) {
+        const logoExtrusionLayers = 18;
+        for (let i = 0; i < logoExtrusionLayers; i++) {
             const img = document.createElement('img');
             img.alt = '';
             img.decoding = 'async';
             img.loading = 'eager';
             img.draggable = false;
-            img.className = i === 6 ? 'orbit-logo-face' : 'orbit-logo-depth';
-            const depth = (i - 3) * 1.15;
-            img.style.transform = `translate3d(${depth.toFixed(2)}px, ${(-depth * .58).toFixed(2)}px, ${i * 1.4}px)`;
+            img.className = i === logoExtrusionLayers - 1 ? 'orbit-logo-face' : 'orbit-logo-depth';
+            const extrusion = i - (logoExtrusionLayers - 1);
+            const offsetX = extrusion * 0.72;
+            const offsetY = extrusion * -0.42;
+            img.style.transform = `translate3d(${offsetX.toFixed(2)}px, ${offsetY.toFixed(2)}px, ${(i * 1.35).toFixed(2)}px)`;
             orbitLogoDom.appendChild(img);
             orbitLogoLayers.push(img);
         }
@@ -1853,6 +1864,9 @@
         setOrbitLogoSource(0);
 
         let orbitLogoAngle = -0.40;
+        const orbitLogoVirtualPosition = new THREE.Vector3();
+        const orbitLogoToLight = new THREE.Vector3();
+
         function updateOrbitLogo(deltaTime) {
             const speed = isPlayingState ? 0.72 : 0.36;
             orbitLogoAngle = (orbitLogoAngle + speed * deltaTime) % (Math.PI * 2);
@@ -1860,24 +1874,41 @@
             const w = globeContainer.clientWidth || 420;
             const h = globeContainer.clientHeight || 280;
             const compact = window.innerWidth <= 600;
-            const orbitX = Math.min(w * (compact ? 0.35 : 0.34), compact ? 132 : 205);
-            const orbitY = Math.min(h * (compact ? 0.20 : 0.19), compact ? 48 : 66);
+            const orbitX = Math.min(w * (compact ? 0.37 : 0.36), compact ? 145 : 220);
+            const orbitY = Math.min(h * (compact ? 0.22 : 0.21), compact ? 55 : 74);
 
             const x = Math.cos(orbitLogoAngle) * orbitX;
-            const y = Math.sin(orbitLogoAngle * 2) * orbitY * 0.42;
+            const y = Math.sin(orbitLogoAngle * 2) * orbitY * 0.44;
             const depth = Math.sin(orbitLogoAngle);
             const front = depth >= 0;
-            const scale = 0.78 + ((depth + 1) * 0.5) * 0.30;
-            const tiltY = -Math.cos(orbitLogoAngle) * 17;
-            const tiltX = Math.sin(orbitLogoAngle * 1.4) * 5;
 
+            // Stronger parallax makes the extruded layers read as an actual 3D object.
+            const scale = 0.86 + ((depth + 1) * 0.5) * 0.28;
+            const tiltY = -Math.cos(orbitLogoAngle) * 31;
+            const tiltX = Math.sin(orbitLogoAngle * 1.35) * 10;
+
+            // Map the DOM orbit to a virtual 3D point and derive illumination from THE SAME
+            // SHARED_LIGHT_POSITION used by the Three.js Earth. No separate logo light exists.
+            orbitLogoVirtualPosition.set(
+                Math.cos(orbitLogoAngle) * 2.25,
+                Math.sin(orbitLogoAngle * 2) * 0.55,
+                depth * 1.85
+            );
+            orbitLogoToLight.copy(SHARED_LIGHT_POSITION).sub(orbitLogoVirtualPosition);
+            const distanceToLight = Math.max(0.001, orbitLogoToLight.length());
+            const facingLight = THREE.MathUtils.clamp(orbitLogoToLight.z / distanceToLight, -1, 1);
+            const illumination = THREE.MathUtils.clamp(0.42 + facingLight * 0.36 + (1 / distanceToLight) * 0.70, 0.36, 1.15);
+            const reflect = THREE.MathUtils.clamp(0.06 + illumination * 0.24, 0.10, 0.34);
+
+            orbitLogoDom.style.setProperty('--logo-light', illumination.toFixed(3));
+            orbitLogoDom.style.setProperty('--logo-reflect', reflect.toFixed(3));
             orbitLogoDom.style.zIndex = front ? '5' : '1';
-            orbitLogoDom.style.opacity = String(front ? 0.98 : 0.52);
+            orbitLogoDom.style.opacity = String(front ? 1 : 0.64);
             orbitLogoDom.style.filter = front
-                ? 'brightness(1.02) saturate(.92)'
-                : 'brightness(.56) saturate(.62)';
+                ? 'saturate(.96)'
+                : 'brightness(.72) saturate(.72)';
             orbitLogoDom.style.transform =
-                `translate3d(calc(-50% + ${x.toFixed(2)}px), calc(-50% + ${y.toFixed(2)}px), 0) ` +
+                `translate3d(calc(-50% + ${x.toFixed(2)}px), calc(-50% + ${y.toFixed(2)}px), ${front ? '26px' : '-26px'}) ` +
                 `scale(${scale.toFixed(3)}) rotateX(${tiltX.toFixed(2)}deg) rotateY(${tiltY.toFixed(2)}deg) rotateZ(-5deg)`;
         }
 
@@ -2076,22 +2107,38 @@
             listenerAnimationFrame = requestAnimationFrame(tick);
         }
 
+        let pendingListenerDropTimer = null;
+        let latestListenerSnapshotCount = 0;
+
         listenersRef.on('value', (snap) => {
-            animateListenerCount(snap.numChildren());
+            const nextCount = snap.numChildren();
+            latestListenerSnapshotCount = nextCount;
+            clearTimeout(pendingListenerDropTimer);
+
+            if (nextCount >= renderedListenerCount) {
+                animateListenerCount(nextCount);
+                return;
+            }
+
+            // Brief RTDB reconnects can momentarily report a lower value. Delay only drops;
+            // increases remain instant. Real departures still settle after a short grace period.
+            pendingListenerDropTimer = setTimeout(() => {
+                animateListenerCount(latestListenerSnapshotCount);
+            }, 1100);
         });
 
         window.addEventListener('pagehide', () => {
             removeListeningPresence();
         });
         window.addEventListener('pageshow', () => {
-            if (userHasClicked && actualPlayerStatePlaying) setListeningPresence(true);
+            if (userHasClicked) setListeningPresence(true);
         });
 
         // Pointer-follow effects are intentionally absent.
         
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=38', { updateViaCache: 'none' })
+                navigator.serviceWorker.register('./sw.js?v=39', { updateViaCache: 'none' })
                     .then((registration) => registration.update())
                     .catch((err) => { console.warn('Service worker registration failed:', err); });
             });
