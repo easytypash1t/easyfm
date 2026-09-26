@@ -1,5 +1,5 @@
-const STATIC_CACHE = 'sp1der-static-v37';
-const RUNTIME_CACHE = 'sp1der-runtime-v37';
+const STATIC_CACHE = 'sp1der-static-v38';
+const RUNTIME_CACHE = 'sp1der-runtime-v38';
 const APP_SHELL = [
   './',
   './index.html',
@@ -72,7 +72,7 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(new Request(request, { cache: 'no-store' }))
         .then((response) => {
           const copy = response.clone();
           caches.open(STATIC_CACHE).then((cache) => cache.put('./index.html', copy)).catch(() => {});
