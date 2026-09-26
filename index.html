@@ -233,6 +233,7 @@
             left: 0;
             top: 0;
             transform-origin: 50% 50%;
+            transform-style: preserve-3d;
             overflow: visible;
             will-change: transform, width, height;
             pointer-events: none;
@@ -253,31 +254,33 @@
 
         .orbit-logo-depth {
             z-index: 0;
-            opacity: .94;
-            filter: brightness(.18) saturate(.72) contrast(1.32);
+            opacity: .96;
+            filter: brightness(.14) saturate(.62) contrast(1.38);
         }
 
         .orbit-logo-face {
             z-index: 10;
-            transform: translateZ(0);
+            transform: translateZ(2px);
+            filter: contrast(1.08) saturate(.96);
         }
 
         .orbit-logo-shine {
             z-index: 12;
-            background: linear-gradient(102deg,
-                rgba(255,255,255,0) 4%,
-                rgba(185,211,238,.10) 28%,
-                rgba(245,250,255,.70) 48%,
-                rgba(255,255,255,.96) 54%,
-                rgba(170,202,236,.16) 70%,
-                rgba(255,255,255,0) 96%);
+            background: linear-gradient(108deg,
+                rgba(255,255,255,0) 0%,
+                rgba(174,205,236,.08) 20%,
+                rgba(225,240,255,.34) 38%,
+                rgba(255,255,255,.98) 50%,
+                rgba(205,229,252,.30) 62%,
+                rgba(255,255,255,0) 100%);
             mix-blend-mode: screen;
             opacity: 0;
+            transform: translateZ(4px);
             -webkit-mask-repeat: no-repeat;
             mask-repeat: no-repeat;
             -webkit-mask-size: 100% 100%;
             mask-size: 100% 100%;
-            will-change: opacity, filter;
+            will-change: opacity, filter, transform;
         }
 
         html[data-quality="low"] .orbit-logo-depth.depth-extra { display: none; }
@@ -1136,6 +1139,7 @@
         let actualPlayerStatePlaying = false;
         let currentLoadedVideoId = null;
         let syncCheckInterval = null;
+        let previewSyncInterval = null;
         let userHasClicked = false;
 
         const baseSongList = [
@@ -1493,7 +1497,10 @@
                     'onReady': () => {
                         isPlayerReady = true;
                         showStreamStatus('');
-                        if (player && typeof player.playVideo === 'function') player.playVideo();
+                        if (player && typeof player.mute === 'function') player.mute();
+                        syncPreviewToLive();
+                        if (previewSyncInterval) clearInterval(previewSyncInterval);
+                        previewSyncInterval = setInterval(syncPreviewToLive, 1000);
                     },
                     'onStateChange': onPlayerStateChange,
                     'onError': onPlayerError
@@ -1547,7 +1554,8 @@
                 showStreamStatus('');
             } else if (event.data === YT.PlayerState.ENDED) {
                 actualPlayerStatePlaying = false;
-                syncToLiveStream();
+                if (userHasClicked) syncToLiveStream();
+                else syncPreviewToLive();
             } else if (event.data === YT.PlayerState.PAUSED ||
                        event.data === YT.PlayerState.CUED ||
                        event.data === YT.PlayerState.UNSTARTED ||
@@ -1559,6 +1567,45 @@
             // Firebase presence intentionally does NOT follow these transient player states.
             // A listener joins once with JOIN LIVE and leaves when the page/session closes.
             updateAudioVisualState();
+        }
+
+        function syncPreviewToLive() {
+            if (!isPlayerReady || !player || userHasClicked) return;
+
+            const state = resolvePlayableState(getCurrentStreamState());
+            if (!state) return;
+            const targetSong = state.song;
+            updateTrackLabels(state);
+
+            if (typeof player.mute === 'function') player.mute();
+
+            if (currentLoadedVideoId !== targetSong.id) {
+                currentLoadedVideoId = targetSong.id;
+                player.loadVideoById({
+                    videoId: targetSong.id,
+                    startSeconds: Math.floor(state.seekTo)
+                });
+                return;
+            }
+
+            const previewPlayerState = typeof player.getPlayerState === 'function'
+                ? player.getPlayerState()
+                : null;
+
+            // If the actual YouTube clip ends a little before the schedule duration,
+            // never replay the finished clip. Hold it until the wall-clock schedule advances,
+            // then the ID-change branch above loads the next video's preview automatically.
+            if (previewPlayerState === YT.PlayerState.ENDED) return;
+
+            if (typeof player.getCurrentTime === 'function') {
+                const currentTime = Number(player.getCurrentTime()) || 0;
+                const timeDiff = Math.abs(currentTime - state.seekTo);
+                if (timeDiff > 2.0) player.seekTo(state.seekTo, true);
+            }
+
+            if (previewPlayerState !== YT.PlayerState.PLAYING) {
+                player.playVideo();
+            }
         }
 
         function syncToLiveStream() {
@@ -1600,6 +1647,10 @@
             if (e && e.cancelable) e.preventDefault();
             if (userHasClicked) return;
             userHasClicked = true;
+            if (previewSyncInterval) {
+                clearInterval(previewSyncInterval);
+                previewSyncInterval = null;
+            }
             // Count the joined session once; do not remove/re-add it on YouTube state changes.
             setListeningPresence(true);
 
@@ -1828,13 +1879,13 @@
         // normal browser image/background (no WebGL/CORS dependency), while overlapping
         // curved slices + depth layers give it a smooth 3D shell around Earth.
         const SP1DER_LOGO_URL = 'https://i.hizliresim.com/cd44fi2l.png';
-        const ORBIT_LOGO_SLICE_COUNT = renderQuality === 'low' ? 30 : renderQuality === 'balanced' ? 38 : 48;
-        const ORBIT_LOGO_ARC = THREE.MathUtils.degToRad(82);
-        const ORBIT_LOGO_RADIUS = 1.94;
-        const ORBIT_LOGO_HEIGHT = window.innerWidth <= 600 ? 1.54 : 1.70;
-        const ORBIT_TILT_X = THREE.MathUtils.degToRad(8.5);
-        const ORBIT_TILT_Z = THREE.MathUtils.degToRad(-8.5);
-        const ORBIT_DEPTH_LAYERS = renderQuality === 'low' ? 4 : renderQuality === 'balanced' ? 5 : 7;
+        const ORBIT_LOGO_SLICE_COUNT = renderQuality === 'low' ? 12 : renderQuality === 'balanced' ? 14 : 16;
+        const ORBIT_LOGO_ARC = THREE.MathUtils.degToRad(92);
+        const ORBIT_LOGO_RADIUS = 1.98;
+        const ORBIT_LOGO_HEIGHT = window.innerWidth <= 600 ? 1.56 : 1.74;
+        const ORBIT_TILT_X = THREE.MathUtils.degToRad(7.0);
+        const ORBIT_TILT_Z = THREE.MathUtils.degToRad(-7.0);
+        const ORBIT_DEPTH_LAYERS = renderQuality === 'low' ? 6 : renderQuality === 'balanced' ? 8 : 10;
 
         const orbitLogoBack = document.createElement('div');
         orbitLogoBack.id = 'orbit-logo-back';
@@ -1970,14 +2021,20 @@
                 const pt = projectWorldToLogoPixels(top, width, height);
                 const pb = projectWorldToLogoPixels(bottom, width, height);
 
-                // 2.2px overlap hides anti-aliased seams between neighboring strips.
-                const sliceWidth = Math.max(2.2, Math.hypot(pr.x - pl.x, pr.y - pl.y) * 1.20 + 2.2);
-                const sliceHeight = Math.max(12, Math.hypot(pb.x - pt.x, pb.y - pt.y) * 1.018 + 1.2);
+                // Wide overlapping panels remove the old hairline/mosaic look. Each panel
+                // also gets a real CSS perspective yaw so the curved PNG reads as a solid 3D shell.
+                const sliceWidth = Math.max(8, Math.hypot(pr.x - pl.x, pr.y - pl.y) * 1.30 + 5.0);
+                const sliceHeight = Math.max(14, Math.hypot(pb.x - pt.x, pb.y - pt.y) * 1.025 + 1.4);
                 const verticalAngle = Math.atan2(pb.y - pt.y, pb.x - pt.x) * 180 / Math.PI - 90;
+                const panelNormal = center.clone().normalize();
+                const cameraDir = camera.position.clone().sub(center).normalize();
+                const facing = THREE.MathUtils.clamp(panelNormal.dot(cameraDir), -1, 1);
+                const yawSign = Math.sign(pr.x - pl.x) || 1;
+                const yaw = THREE.MathUtils.clamp((1 - Math.abs(facing)) * 42 * yawSign, -42, 42);
 
                 item.slice.style.width = `${sliceWidth.toFixed(2)}px`;
                 item.slice.style.height = `${sliceHeight.toFixed(2)}px`;
-                item.slice.style.transform = `translate3d(${(pc.x - sliceWidth / 2).toFixed(2)}px, ${(pc.y - sliceHeight / 2).toFixed(2)}px, 0) rotate(${verticalAngle.toFixed(3)}deg)`;
+                item.slice.style.transform = `translate3d(${(pc.x - sliceWidth / 2).toFixed(2)}px, ${(pc.y - sliceHeight / 2).toFixed(2)}px, 0) rotateZ(${verticalAngle.toFixed(3)}deg) rotateY(${yaw.toFixed(2)}deg)`;
 
                 // Each narrow piece moves through the globe independently, so the logo is
                 // occluded continuously rather than suddenly switching as one flat image.
@@ -1987,23 +2044,23 @@
 
                 // Exact same light point as Earth: diffuse and specular are derived from
                 // SHARED_LIGHT_POSITION, never from a front/back brightness toggle.
-                const normal = center.clone().normalize();
+                const normal = panelNormal.clone();
                 const lightDir = SHARED_LIGHT_POSITION.clone().sub(center).normalize();
                 const viewDir = camera.position.clone().sub(center).normalize();
                 if (normal.dot(viewDir) < 0) normal.multiplyScalar(-1);
                 const diffuse = Math.max(0, normal.dot(lightDir));
                 const halfVector = lightDir.clone().add(viewDir).normalize();
-                const specular = Math.pow(Math.max(0, normal.dot(halfVector)), 18);
+                const specular = Math.pow(Math.max(0, normal.dot(halfVector)), 10);
                 const grazing = 1 - Math.min(1, Math.abs(normal.dot(viewDir)));
-                const brightness = 0.72 + diffuse * 0.42 + specular * 0.25;
+                const brightness = 0.62 + diffuse * 0.48 + specular * 0.42;
 
-                item.face.style.filter = `brightness(${brightness.toFixed(3)}) contrast(1.10) saturate(.96) drop-shadow(0 0 ${(2.2 + specular * 8).toFixed(1)}px rgba(214,231,250,${(0.09 + specular * 0.34).toFixed(3)}))`;
+                item.face.style.filter = `brightness(${brightness.toFixed(3)}) contrast(1.12) saturate(.98) drop-shadow(0 0 ${(2.5 + specular * 11).toFixed(1)}px rgba(214,231,250,${(0.10 + specular * 0.40).toFixed(3)}))`;
 
-                // Reflection forms one broad continuous highlight band, not one highlight
-                // per strip. The specular term is from the same point light used by Earth.
-                const broadSpec = Math.min(1, specular * 1.18 + diffuse * 0.10 + grazing * 0.06);
-                item.shine.style.opacity = (0.025 + broadSpec * 0.62).toFixed(3);
-                item.shine.style.filter = `blur(${(0.15 + (1 - broadSpec) * 0.35).toFixed(2)}px)`;
+                // One broad metallic highlight driven by the SAME point-light vector as Earth.
+                const broadSpec = Math.min(1, specular * 1.08 + diffuse * 0.16 + grazing * 0.05);
+                item.shine.style.opacity = (0.02 + broadSpec * 0.78).toFixed(3);
+                item.shine.style.filter = `blur(${(0.25 + (1 - broadSpec) * 0.55).toFixed(2)}px)`;
+                item.shine.style.transform = `translate3d(${((0.5 - u) * 4).toFixed(2)}px, 0, 4px)`;
 
                 // Thick extrusion goes AWAY from the shared light's screen position. Multiple
                 // tightly stacked copies merge into one solid 3D edge instead of visible lines.
@@ -2017,13 +2074,13 @@
                 }
                 const ux = dx / len;
                 const uy = dy / len;
-                const maxDepthPx = 7.2 + grazing * 2.8;
+                const maxDepthPx = 10.5 + grazing * 4.5;
                 item.depths.forEach((depthEl, depthIndex) => {
                     const t = (depthIndex + 1) / item.depths.length;
                     const depth = maxDepthPx * t;
                     depthEl.style.transform = `translate(${(ux * depth).toFixed(2)}px, ${(uy * depth).toFixed(2)}px)`;
-                    depthEl.style.opacity = (0.94 - t * 0.18).toFixed(3);
-                    depthEl.style.filter = `brightness(${(0.12 + diffuse * 0.18 + specular * 0.10).toFixed(3)}) saturate(.72) contrast(1.32)`;
+                    depthEl.style.opacity = (0.98 - t * 0.20).toFixed(3);
+                    depthEl.style.filter = `brightness(${(0.10 + diffuse * 0.22 + specular * 0.16).toFixed(3)}) saturate(.72) contrast(1.32)`;
                 });
             }
         }
@@ -2103,12 +2160,20 @@
                     clearInterval(syncCheckInterval);
                     syncCheckInterval = null;
                 }
+                if (previewSyncInterval) {
+                    clearInterval(previewSyncInterval);
+                    previewSyncInterval = null;
+                }
             } else {
                 startNowPlayingTicker();
                 if (userHasClicked) {
                     syncToLiveStream();
                     if (syncCheckInterval) clearInterval(syncCheckInterval);
                     syncCheckInterval = setInterval(syncToLiveStream, 2000);
+                } else if (isPlayerReady && player) {
+                    syncPreviewToLive();
+                    if (previewSyncInterval) clearInterval(previewSyncInterval);
+                    previewSyncInterval = setInterval(syncPreviewToLive, 1000);
                 }
             }
         });
@@ -2253,7 +2318,7 @@
         
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=43', { updateViaCache: 'none' })
+                navigator.serviceWorker.register('./sw.js?v=44', { updateViaCache: 'none' })
                     .then((registration) => registration.update())
                     .catch((err) => { console.warn('Service worker registration failed:', err); });
             });
