@@ -211,7 +211,7 @@
         #globe-3d-container canvas {
             display: block;
             outline: none;
-            filter: drop-shadow(0 0 26px rgba(255,255,255,.22)) drop-shadow(0 0 70px rgba(120,160,255,.10));
+            filter: drop-shadow(0 0 18px rgba(255,244,226,.10)) drop-shadow(0 0 44px rgba(90,120,155,.055));
         }
 
         .status-bar {
@@ -1670,7 +1670,7 @@
         if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
         if ('physicallyCorrectLights' in renderer) renderer.physicallyCorrectLights = true;
         if (THREE.ACESFilmicToneMapping) renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = renderQuality === 'low' ? 0.88 : 0.92;
+        renderer.toneMappingExposure = renderQuality === 'low' ? 0.72 : renderQuality === 'balanced' ? 0.76 : 0.80;
 
         const pixelRatioCap = renderQuality === 'high' ? 1.15 : renderQuality === 'balanced' ? 1.0 : 0.85;
         const minimumPixelRatio = renderQuality === 'high' ? 0.82 : renderQuality === 'balanced' ? 0.76 : 0.68;
@@ -1711,12 +1711,11 @@
         const geometry = new THREE.SphereGeometry(baseRadius, segments, segments);
         const material = new THREE.MeshStandardMaterial({
             map: null,
-            roughness: 0.92,
-            metalness: 0.02,
-            // Not a light source: this tiny self-fill only keeps the night side from
-            // becoming mathematically pitch black while sunLight remains the sole THREE.Light.
-            emissive: 0x020304,
-            emissiveIntensity: 0.10
+            roughness: 0.72,
+            metalness: 0.0,
+            // No emissive/self-lighting. The Earth is illuminated only by sunLight.
+            emissive: 0x000000,
+            emissiveIntensity: 0
         });
 
         function loadTextureWithFallback(urls, index = 0) {
@@ -1728,8 +1727,9 @@
                 urls[index],
                 (texture) => {
                     texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+                    if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
                     material.map = texture;
-                    material.emissiveMap = texture;
+                    material.emissiveMap = null;
                     material.needsUpdate = true;
                 },
                 undefined,
@@ -1740,33 +1740,32 @@
         const globeMesh = new THREE.Mesh(geometry, material);
         scene.add(globeMesh);
 
-        // ONE actual light source for both Earth and the SP1DER emblem.
-        // No AmbientLight / HemisphereLight / logo-only light is used.
         const sunLight = new THREE.PointLight(
-            0xffead2,
-            renderQuality === 'low' ? 105 : renderQuality === 'balanced' ? 118 : 132,
+            0xffdfc2,
+            renderQuality === 'low' ? 34 : renderQuality === 'balanced' ? 42 : 50,
             0,
             2.0
         );
-        sunLight.position.set(4.4, 2.8, 4.9);
+        sunLight.position.set(4.6, 2.45, 5.35);
         scene.add(sunLight);
 
-        // Single orbiting SP1DER logo. The transparent PNG is treated as a
-        // metallic 3D emblem: stacked alpha-cut planes provide thickness,
-        // while a procedural environment map gives the chrome face reflections.
         const SP1DER_LOGO_ORIGINAL = 'https://i.hizliresim.com/cd44fi2l.png';
+        const SP1DER_LOGO_ICON = 'https://i.hizliresim.com/texrnzfw.png';
         const SP1DER_LOGO_TEXTURES = [
-            // The artwork still lives only on Hızlıresim. wsrv.nl merely fetches that same
-            // remote PNG and returns it with browser-readable CORS headers for WebGL/canvas.
-            'https://wsrv.nl/?url=i.hizliresim.com%2Fcd44fi2l.png&output=png&maxage=1d&sp1der3d=32',
-            'https://images.weserv.nl/?url=i.hizliresim.com%2Fcd44fi2l.png&output=png&sp1der3d=32',
-            // Direct Hızlıresim is kept as a final attempt for hosts/browsers where CORS is enabled.
-            SP1DER_LOGO_ORIGINAL + '?sp1der3d=32'
+            // The artwork remains on Hızlıresim. These are CORS-readable passes of the
+            // same remote app-logo assets already referenced by this site/manifest.
+            'https://images.weserv.nl/?url=https%3A%2F%2Fi.hizliresim.com%2Fcd44fi2l.png&output=png',
+            'https://wsrv.nl/?url=https%3A%2F%2Fi.hizliresim.com%2Fcd44fi2l.png&output=png',
+            'https://images.weserv.nl/?url=ssl%3Ai.hizliresim.com%2Fcd44fi2l.png&output=png',
+            'https://images.weserv.nl/?url=https%3A%2F%2Fi.hizliresim.com%2Ftexrnzfw.png&output=png',
+            'https://wsrv.nl/?url=https%3A%2F%2Fi.hizliresim.com%2Ftexrnzfw.png&output=png',
+            SP1DER_LOGO_ORIGINAL,
+            SP1DER_LOGO_ICON
         ];
 
         let orbitLogoRig = null;
         let orbitLogoBody = null;
-        let orbitLogoAngle = 0.14;
+        let orbitLogoAngle = 0.0;
         const orbitLogoRadius = baseRadius + 0.38;
 
         function createChromeEnvironmentMap() {
@@ -1783,19 +1782,19 @@
                 );
                 grad.addColorStop(0.00, '#020304');
                 grad.addColorStop(0.10, cool ? '#15202a' : '#151719');
-                grad.addColorStop(0.25, '#f9fdff');
-                grad.addColorStop(0.34, '#7e8d99');
+                grad.addColorStop(0.25, '#aeb9c1');
+                grad.addColorStop(0.34, '#5f6971');
                 grad.addColorStop(0.48, '#080a0c');
-                grad.addColorStop(0.62, cool ? '#bfe5ff' : '#eaf4fb');
-                grad.addColorStop(0.70, '#ffffff');
+                grad.addColorStop(0.62, cool ? '#7f9ead' : '#98a4aa');
+                grad.addColorStop(0.70, '#c7cdd1');
                 grad.addColorStop(0.80, '#20262b');
                 grad.addColorStop(1.00, '#010202');
                 ctx.fillStyle = grad;
                 ctx.fillRect(0, 0, 256, 256);
 
                 const shine = ctx.createRadialGradient(72, 54, 2, 72, 54, 130);
-                shine.addColorStop(0, 'rgba(255,255,255,1)');
-                shine.addColorStop(.12, 'rgba(200,226,242,.48)');
+                shine.addColorStop(0, 'rgba(255,244,232,.62)');
+                shine.addColorStop(.12, 'rgba(173,193,204,.26)');
                 shine.addColorStop(.40, 'rgba(90,130,160,.10)');
                 shine.addColorStop(1, 'rgba(0,0,0,0)');
                 ctx.fillStyle = shine;
@@ -1835,9 +1834,7 @@
             orbitLogoRig = null;
             orbitLogoBody = null;
         }
-
-        // True curved ribbon geometry: the logo surface follows the globe's radius.
-        // A large angular span makes the left/right ends visibly wrap around the Earth.
+        
         function createCurvedLogoGeometry(radius, height, thetaLength, radialSegments) {
             const geometry = new THREE.CylinderGeometry(
                 radius,
@@ -1877,27 +1874,22 @@
 
             const qualityScale = renderQuality === 'low' ? 0.91 : renderQuality === 'balanced' ? 0.97 : 1.0;
             const shellHeight = 1.56 * qualityScale;
-            // Slightly smaller than the original while preserving the wrap-around silhouette.
             const thetaLength = 1.96 * qualityScale;
-            // More radial resolution smooths the curved outer edge; shallower, denser depth slices
-            // reduce the visible striped/banded look on the 3D sides.
             const radialSegments = renderQuality === 'low' ? 112 : renderQuality === 'balanced' ? 176 : 256;
             const depthLayers = renderQuality === 'low' ? 10 : renderQuality === 'balanced' ? 14 : 18;
             const totalDepth = renderQuality === 'low' ? 0.050 : renderQuality === 'balanced' ? 0.060 : 0.068;
 
             const frontMaterial = new THREE.MeshPhysicalMaterial({
-                // Use the remote artwork only as a silhouette mask. Its original RGB can be
-                // black/white without making the chrome emblem disappear into the background.
                 alphaMap: texture,
-                color: 0x929aa2,
-                metalness: 0.92,
-                roughness: 0.23,
-                clearcoat: 0.46,
-                clearcoatRoughness: 0.13,
-                reflectivity: 0.78,
+                color: 0x8f969c,
+                metalness: 0.88,
+                roughness: 0.30,
+                clearcoat: 0.34,
+                clearcoatRoughness: 0.18,
+                reflectivity: 0.72,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.36 : 0.62,
-                alphaTest: 0.075,
+                envMapIntensity: renderQuality === 'low' ? 0.24 : 0.42,
+                alphaTest: 0.035,
                 transparent: false,
                 side: THREE.DoubleSide,
                 depthTest: true,
@@ -1906,15 +1898,15 @@
 
             const sideMaterial = new THREE.MeshPhysicalMaterial({
                 alphaMap: texture,
-                color: 0x343a40,
-                metalness: 0.82,
-                roughness: 0.38,
+                color: 0x2b3035,
+                metalness: 0.80,
+                roughness: 0.42,
                 clearcoat: 0.22,
                 clearcoatRoughness: 0.22,
                 reflectivity: 0.66,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.22 : 0.38,
-                alphaTest: 0.075,
+                envMapIntensity: renderQuality === 'low' ? 0.16 : 0.28,
+                alphaTest: 0.035,
                 transparent: false,
                 side: THREE.DoubleSide,
                 depthTest: true,
@@ -1923,15 +1915,15 @@
 
             const bevelMaterial = new THREE.MeshPhysicalMaterial({
                 alphaMap: texture,
-                color: 0xb7bec5,
-                metalness: 0.94,
-                roughness: 0.20,
+                color: 0xa8afb5,
+                metalness: 0.90,
+                roughness: 0.27,
                 clearcoat: 0.50,
                 clearcoatRoughness: 0.11,
                 reflectivity: 0.82,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.38 : 0.68,
-                alphaTest: 0.075,
+                envMapIntensity: renderQuality === 'low' ? 0.24 : 0.46,
+                alphaTest: 0.035,
                 transparent: false,
                 side: THREE.DoubleSide,
                 depthTest: true,
@@ -1946,15 +1938,14 @@
                 clearcoat: 0.18,
                 clearcoatRoughness: 0.26,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: 0.30,
-                alphaTest: 0.075,
+                envMapIntensity: 0.22,
+                alphaTest: 0.035,
                 transparent: false,
                 side: THREE.DoubleSide,
                 depthTest: true,
                 depthWrite: true
             });
 
-            // Thin stacked cut-outs: enough sidewall for real 3D depth without a chunky profile.
             for (let i = depthLayers; i >= 1; i--) {
                 const p = i / depthLayers;
                 const layerRadius = orbitLogoRadius - p * totalDepth;
@@ -1963,10 +1954,10 @@
                 const g = createCurvedLogoGeometry(layerRadius, layerHeight, layerTheta, radialSegments);
                 const m = new THREE.Mesh(g, sideMaterial);
                 m.renderOrder = 1;
+                m.frustumCulled = false;
                 orbitLogoBody.add(m);
             }
-
-            // Rear metal face.
+            
             const backGeometry = createCurvedLogoGeometry(
                 orbitLogoRadius - totalDepth - 0.006,
                 shellHeight * 0.955,
@@ -1975,6 +1966,7 @@
             );
             const back = new THREE.Mesh(backGeometry, backMaterial);
             back.renderOrder = 1;
+            back.frustumCulled = false;
             orbitLogoBody.add(back);
 
             // Slim bevel lip: a restrained raised edge keeps the emblem metallic, not bulky.
@@ -1988,6 +1980,7 @@
                 const m = new THREE.Mesh(g, bevelMaterial);
                 m.material = bevelMaterial;
                 m.renderOrder = 2;
+                m.frustumCulled = false;
                 orbitLogoBody.add(m);
             }
 
@@ -2000,10 +1993,8 @@
             );
             const front = new THREE.Mesh(frontGeometry, frontMaterial);
             front.renderOrder = 3;
+            front.frustumCulled = false;
             orbitLogoBody.add(front);
-
-            // No separate logo-only light or additive white sweep: the emblem is lit by sunLight,
-            // the same fixed source that lights the Earth.
         }
 
         function decodeLogoBlob(blob) {
@@ -2031,55 +2022,71 @@
 
             const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = frame.data;
+            const pixelCount = canvas.width * canvas.height;
 
-            // Detect whether the source already has useful transparency.
-            let minA = 255, maxA = 0;
-            const sampleStep = Math.max(4, Math.floor((canvas.width * canvas.height) / 18000));
-            for (let px = 0; px < canvas.width * canvas.height; px += sampleStep) {
-                const a = data[px * 4 + 3];
-                if (a < minA) minA = a;
-                if (a > maxA) maxA = a;
-            }
-            const hasRealAlpha = (maxA - minA) > 18 && minA < 235;
-
-            // If the PNG is an opaque social/preview image, estimate its background from
-            // the corners and convert color-distance into a clean silhouette automatically.
-            const cornerSizeX = Math.max(1, Math.floor(canvas.width * 0.08));
-            const cornerSizeY = Math.max(1, Math.floor(canvas.height * 0.08));
-            let br = 0, bg = 0, bb = 0, bc = 0;
-            const cornerRects = [
-                [0, 0], [canvas.width - cornerSizeX, 0],
-                [0, canvas.height - cornerSizeY],
-                [canvas.width - cornerSizeX, canvas.height - cornerSizeY]
-            ];
-            for (const [sx, sy] of cornerRects) {
-                for (let y = sy; y < sy + cornerSizeY; y += 2) {
-                    for (let x = sx; x < sx + cornerSizeX; x += 2) {
-                        const o = (y * canvas.width + x) * 4;
-                        br += data[o]; bg += data[o + 1]; bb += data[o + 2]; bc++;
+            // Average the four corners to estimate an opaque image's background color.
+            const sx = Math.max(1, Math.floor(canvas.width * 0.08));
+            const sy = Math.max(1, Math.floor(canvas.height * 0.08));
+            const corners = [[0,0],[canvas.width-sx,0],[0,canvas.height-sy],[canvas.width-sx,canvas.height-sy]];
+            let br=0,bg=0,bb=0,bc=0;
+            for (const [ox,oy] of corners) {
+                for (let y=oy; y<oy+sy; y+=2) {
+                    for (let x=ox; x<ox+sx; x+=2) {
+                        const o=(y*canvas.width+x)*4;
+                        br+=data[o]; bg+=data[o+1]; bb+=data[o+2]; bc++;
                     }
                 }
             }
-            br /= Math.max(1, bc); bg /= Math.max(1, bc); bb /= Math.max(1, bc);
+            br/=Math.max(1,bc); bg/=Math.max(1,bc); bb/=Math.max(1,bc);
+            const bgLum = br*0.2126 + bg*0.7152 + bb*0.0722;
 
-            for (let i = 0; i < data.length; i += 4) {
-                let mask;
-                if (hasRealAlpha) {
-                    mask = data[i + 3];
-                } else {
-                    const dr = data[i] - br;
-                    const dg = data[i + 1] - bg;
-                    const db = data[i + 2] - bb;
-                    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
-                    mask = Math.max(0, Math.min(255, (dist - 9) * 5.2));
-                }
-                data[i] = mask;
-                data[i + 1] = mask;
-                data[i + 2] = mask;
-                data[i + 3] = 255;
+            let minA=255,maxA=0, alphaOccupied=0, distanceOccupied=0, lumaOccupied=0;
+            const alphaMask = new Uint8ClampedArray(pixelCount);
+            const distanceMask = new Uint8ClampedArray(pixelCount);
+            const lumaMask = new Uint8ClampedArray(pixelCount);
+
+            for (let p=0; p<pixelCount; p++) {
+                const o=p*4;
+                const r=data[o], g=data[o+1], b=data[o+2], a=data[o+3];
+                minA=Math.min(minA,a); maxA=Math.max(maxA,a);
+                alphaMask[p]=a;
+                if (a>48) alphaOccupied++;
+
+                const dr=r-br, dg=g-bg, db=b-bb;
+                const dist=Math.sqrt(dr*dr+dg*dg+db*db);
+                const dm=Math.max(0,Math.min(255,(dist-7)*6.0));
+                distanceMask[p]=dm;
+                if (dm>48) distanceOccupied++;
+
+                const lum=r*0.2126 + g*0.7152 + b*0.0722;
+                const lm=Math.max(0,Math.min(255,(Math.abs(lum-bgLum)-5)*7.0));
+                lumaMask[p]=lm;
+                if (lm>48) lumaOccupied++;
             }
-            ctx.putImageData(frame, 0, 0);
+
+            const fraction = n => n / Math.max(1,pixelCount);
+            const alphaUseful = (maxA-minA)>18 && fraction(alphaOccupied)>0.008 && fraction(alphaOccupied)<0.82;
+            const distanceUseful = fraction(distanceOccupied)>0.008 && fraction(distanceOccupied)<0.82;
+            const lumaUseful = fraction(lumaOccupied)>0.008 && fraction(lumaOccupied)<0.82;
+
+            let chosen = alphaUseful ? alphaMask : distanceUseful ? distanceMask : lumaUseful ? lumaMask : null;
+
+            if (!chosen) {
+                chosen = distanceOccupied <= lumaOccupied ? distanceMask : lumaMask;
+            }
+
+            let finalOccupied=0;
+            for (let p=0; p<pixelCount; p++) {
+                let mask = chosen[p];
+                mask = Math.max(0, Math.min(255, Math.pow(mask/255, 0.78)*255));
+                if (mask>32) finalOccupied++;
+                const o=p*4;
+                data[o]=mask; data[o+1]=mask; data[o+2]=mask; data[o+3]=255;
+            }
+
+            ctx.putImageData(frame,0,0);
             URL.revokeObjectURL(decoded.objectUrl);
+            console.info('SP1DER mask coverage:', (finalOccupied/Math.max(1,pixelCount)).toFixed(3));
 
             const maskTexture = new THREE.CanvasTexture(canvas);
             maskTexture.flipY = true;
@@ -2100,10 +2107,6 @@
                         credentials: 'omit'
                     });
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const type = (response.headers.get('content-type') || '').toLowerCase();
-                    if (type && !type.includes('image/')) {
-                        throw new Error(`Unexpected content-type: ${type}`);
-                    }
                     const blob = await response.blob();
                     if (!blob.size) throw new Error('Empty logo response');
                     const maskTexture = await blobToLogoMaskTexture(blob);
@@ -2170,7 +2173,6 @@
                 orbitLogoRig.rotation.x = -0.18 + Math.sin(orbitLogoAngle * 0.34) * 0.022;
                 orbitLogoRig.rotation.z = 0.09 + Math.cos(orbitLogoAngle * 0.27) * 0.016;
 
-                // Keep the logo tangent to its orbital path; small pitch/roll reveals the 3D thickness.
                 orbitLogoBody.rotation.y = Math.sin(orbitLogoAngle * 0.52) * 0.055;
                 orbitLogoBody.rotation.x = -0.08 + Math.cos(orbitLogoAngle * 0.72) * 0.040;
                 orbitLogoBody.rotation.z = Math.sin(orbitLogoAngle * 0.61) * 0.028;
@@ -2365,9 +2367,7 @@
                 wrapper.style.transform = 'rotateY(0deg) rotateX(0deg)';
             });
         }
-
-        // PWA/service-worker registration. It intentionally does not cache media streams;
-        // only the app shell and static dependencies are cached.
+        
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js').catch((err) => {
