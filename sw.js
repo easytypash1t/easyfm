@@ -1,5 +1,5 @@
-const STATIC_CACHE = 'sp1der-static-v30';
-const RUNTIME_CACHE = 'sp1der-runtime-v30';
+const STATIC_CACHE = 'sp1der-static-v32';
+const RUNTIME_CACHE = 'sp1der-runtime-v32';
 const APP_SHELL = [
   './',
   './index.html',
@@ -43,7 +43,8 @@ function isStaticDependency(request, url) {
     'www.gstatic.com',
     'raw.githubusercontent.com',
     'i.hizliresim.com',
-    'images.weserv.nl'
+    'images.weserv.nl',
+    'wsrv.nl'
   ];
   return allowedHosts.includes(url.hostname) &&
          ['script', 'style', 'font', 'image'].includes(request.destination);
