@@ -216,6 +216,47 @@
         }
 
 
+        #orbit-logo-dom-fallback {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: clamp(92px, 20vw, 158px);
+            aspect-ratio: 1 / 1;
+            pointer-events: none;
+            transform-style: preserve-3d;
+            transform-origin: 50% 50%;
+            will-change: transform, filter, opacity;
+            isolation: isolate;
+        }
+
+        #orbit-logo-dom-fallback .orbit-dom-depth,
+        #orbit-logo-dom-fallback .orbit-dom-face {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+            -webkit-user-drag: none;
+            user-select: none;
+        }
+
+        #orbit-logo-dom-fallback .orbit-dom-depth {
+            filter: brightness(.16) saturate(.72) contrast(1.25);
+            opacity: .48;
+        }
+
+        #orbit-logo-dom-fallback .orbit-dom-face {
+            filter: brightness(1.03) contrast(1.08) saturate(.96)
+                    drop-shadow(0 0 6px rgba(220,235,255,.18));
+        }
+
+        #orbit-logo-dom-fallback.webgl-ready {
+            opacity: 0;
+            transition: opacity .18s ease;
+        }
+
+
         .status-bar {
             display: flex;
             gap: 10px;
@@ -1793,6 +1834,11 @@
         scene.add(globeMesh);
 
         const ORBIT_LOGO_URL = 'https://i.hizliresim.com/dbqnjtaq.png';
+        const ORBIT_LOGO_TEXTURE_SOURCES = [
+            'https://images.weserv.nl/?url=i.hizliresim.com/dbqnjtaq.png&output=png',
+            'https://wsrv.nl/?url=i.hizliresim.com/dbqnjtaq.png&output=png',
+            ORBIT_LOGO_URL
+        ];
         const orbitLogoRoot = new THREE.Group();
         const orbitLogoSpinGroup = new THREE.Group();
         const orbitLogoSurfaceGroup = new THREE.Group();
@@ -1808,6 +1854,27 @@
         orbitLogoRoot.add(orbitLogoSpinGroup);
         orbitLogoSpinGroup.add(orbitLogoSurfaceGroup);
         scene.add(orbitLogoRoot);
+
+        const orbitLogoDomFallback = document.createElement('div');
+        orbitLogoDomFallback.id = 'orbit-logo-dom-fallback';
+        orbitLogoDomFallback.setAttribute('aria-hidden', 'true');
+        for (let i = 0; i < 7; i++) {
+            const depthImg = document.createElement('img');
+            depthImg.className = 'orbit-dom-depth';
+            depthImg.src = ORBIT_LOGO_URL;
+            depthImg.alt = '';
+            const z = -10 + i * 2.2;
+            const x = -5 + i * 0.8;
+            depthImg.style.transform = `translate3d(${x.toFixed(1)}px, 0, ${z.toFixed(1)}px)`;
+            orbitLogoDomFallback.appendChild(depthImg);
+        }
+        const orbitDomFace = document.createElement('img');
+        orbitDomFace.className = 'orbit-dom-face';
+        orbitDomFace.src = ORBIT_LOGO_URL;
+        orbitDomFace.alt = '';
+        orbitDomFace.style.transform = 'translateZ(7px)';
+        orbitLogoDomFallback.appendChild(orbitDomFace);
+        globeContainer.appendChild(orbitLogoDomFallback);
 
         function createOrbitLogoObject(texture) {
             const group = new THREE.Group();
@@ -1884,18 +1951,39 @@
             return group;
         }
 
-        textureLoader.load(
-            ORBIT_LOGO_URL,
-            (logoTexture) => {
-                logoTexture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
-                if ('encoding' in logoTexture && THREE.sRGBEncoding) logoTexture.encoding = THREE.sRGBEncoding;
-                orbitLogoObject = createOrbitLogoObject(logoTexture);
-                orbitLogoSurfaceGroup.add(orbitLogoObject);
-                orbitLogoSpinGroup.rotation.y = -0.62;
-            },
-            undefined,
-            () => console.warn('Orbit logo texture could not be loaded.')
-        );
+        const orbitTextureLoader = new THREE.TextureLoader();
+        orbitTextureLoader.setCrossOrigin('anonymous');
+
+        function loadOrbitLogoTexture(index = 0) {
+            if (index >= ORBIT_LOGO_TEXTURE_SOURCES.length) {
+                console.warn('Orbit logo WebGL texture failed on every source; DOM 3D fallback remains active.');
+                return;
+            }
+
+            orbitTextureLoader.load(
+                ORBIT_LOGO_TEXTURE_SOURCES[index],
+                (logoTexture) => {
+                    logoTexture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+                    if ('encoding' in logoTexture && THREE.sRGBEncoding) logoTexture.encoding = THREE.sRGBEncoding;
+                    logoTexture.wrapS = THREE.ClampToEdgeWrapping;
+                    logoTexture.wrapT = THREE.ClampToEdgeWrapping;
+                    logoTexture.needsUpdate = true;
+
+                    orbitLogoObject = createOrbitLogoObject(logoTexture);
+                    orbitLogoSurfaceGroup.add(orbitLogoObject);
+                    orbitLogoSpinGroup.rotation.y = 0.06;
+
+                    orbitLogoDomFallback.classList.add('webgl-ready');
+                    setTimeout(() => {
+                        if (orbitLogoDomFallback.parentNode) orbitLogoDomFallback.parentNode.removeChild(orbitLogoDomFallback);
+                    }, 240);
+                },
+                undefined,
+                () => loadOrbitLogoTexture(index + 1)
+            );
+        }
+
+        loadOrbitLogoTexture();
 
         // Main point light for the Earth.
         const SHARED_LIGHT_POSITION = new THREE.Vector3(4.9, 3.35, 6.25);
@@ -1955,8 +2043,9 @@
             const globeSpeed = isPlayingState ? 0.52 : 0.13;
             globeMesh.rotation.y += globeSpeed * deltaTime;
 
+            const orbitSpeed = isPlayingState ? 0.84 : 0.28;
+
             if (orbitLogoObject) {
-                const orbitSpeed = isPlayingState ? 0.84 : 0.28;
                 orbitLogoSpinGroup.rotation.y += orbitSpeed * deltaTime;
                 orbitLogoRoot.rotation.x = ORBIT_LOGO_BASE_TILT_X + Math.sin(currentTime * 0.00046) * 0.055;
                 orbitLogoRoot.rotation.z = ORBIT_LOGO_BASE_TILT_Z + Math.cos(currentTime * 0.00039) * 0.05;
@@ -1976,6 +2065,28 @@
                 if (orbitLogoShineMaterial) {
                     orbitLogoShineMaterial.opacity = (renderQuality === 'low' ? 0.10 : 0.14) + facingLight * (renderQuality === 'low' ? 0.10 : 0.17);
                 }
+            }
+
+            if (orbitLogoDomFallback && orbitLogoDomFallback.isConnected) {
+                const fallbackAngle = currentTime * 0.001 * orbitSpeed + 0.06;
+                const orbitX = Math.sin(fallbackAngle) * Math.min(globeContainer.clientWidth * 0.205, 118);
+                const orbitScale = 0.82 + (Math.cos(fallbackAngle) + 1) * 0.10;
+                const orbitYaw = Math.sin(fallbackAngle) * 33;
+                const orbitPitch = -16 + Math.cos(fallbackAngle * 0.68) * 4;
+                const orbitRoll = 22 + Math.sin(fallbackAngle * 0.55) * 5;
+                const frontAmount = (Math.cos(fallbackAngle) + 1) * 0.5;
+
+                orbitLogoDomFallback.style.zIndex = Math.cos(fallbackAngle) >= 0 ? '3' : '1';
+                orbitLogoDomFallback.style.opacity = String(0.54 + frontAmount * 0.46);
+                orbitLogoDomFallback.style.transform =
+                    `translate(-50%, -50%) translate3d(${orbitX.toFixed(2)}px, 0, 0) ` +
+                    `rotateX(${orbitPitch.toFixed(2)}deg) rotateY(${orbitYaw.toFixed(2)}deg) ` +
+                    `rotateZ(${orbitRoll.toFixed(2)}deg) scale(${orbitScale.toFixed(3)})`;
+
+                const fallbackLight = 0.88 + frontAmount * 0.30;
+                orbitDomFace.style.filter =
+                    `brightness(${fallbackLight.toFixed(2)}) contrast(1.08) saturate(.96) ` +
+                    `drop-shadow(0 0 ${(4 + frontAmount * 8).toFixed(1)}px rgba(220,235,255,${(0.10 + frontAmount * 0.22).toFixed(2)}))`;
             }
 
             animatePhotoWebs(deltaTime);
