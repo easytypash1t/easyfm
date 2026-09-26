@@ -1908,45 +1908,75 @@
         keyLight.position.copy(SHARED_LIGHT_POSITION);
         scene.add(keyLight);
 
-        // --- TRUE CURVED 3D / REFLECTIVE PNG SP1DER ORBIT ---
-        // The artwork remains the original Hızlıresim PNG. Unlike the previous DOM
-        // versions, it is not sliced into HTML panels. It is a single texture mapped
-        // across a real curved WebGL surface centered on the Earth.
+        // --- SP1DER LOGO: rebuild from scratch ---
+        // Requirements:
+        // 1) use the remote Hızlıresim PNG (no local asset),
+        // 2) make it genuinely 3D,
+        // 3) light it from the same point light as Earth,
+        // 4) keep it curved so it looks like it wraps the globe,
+        // 5) orbit around the globe from the centered orbit plane.
         const SP1DER_LOGO_SOURCE = 'https://i.hizliresim.com/cd44fi2l.png';
         const SP1DER_LOGO_TEXTURE_URLS = [
-            'https://images.weserv.nl/?url=i.hizliresim.com%2Fcd44fi2l.png&output=png',
-            'https://wsrv.nl/?url=i.hizliresim.com%2Fcd44fi2l.png&output=png',
             'https://images.weserv.nl/?url=https%3A%2F%2Fi.hizliresim.com%2Fcd44fi2l.png&output=png',
+            'https://wsrv.nl/?url=https%3A%2F%2Fi.hizliresim.com%2Fcd44fi2l.png&output=png',
+            'https://images.weserv.nl/?url=i.hizliresim.com%2Fcd44fi2l.png&output=png',
             SP1DER_LOGO_SOURCE
         ];
 
-        // The band sits outside the 1.35 Earth radius, so no part of the logo can
-        // sink into the globe. Arc length and height are kept close to square so the
-        // source PNG is not grotesquely stretched.
-        const ORBIT_LOGO_RADIUS = 1.76;
-        const ORBIT_LOGO_DEPTH = 0.105;
-        const ORBIT_LOGO_HEIGHT = window.innerWidth <= 600 ? 1.64 : 1.78;
-        const ORBIT_LOGO_ARC = THREE.MathUtils.degToRad(window.innerWidth <= 600 ? 60 : 64);
-        const ORBIT_LOGO_SEGMENTS = renderQuality === 'low' ? 48 : renderQuality === 'balanced' ? 72 : 104;
-        const ORBIT_LOGO_DEPTH_LAYERS = renderQuality === 'low' ? 5 : renderQuality === 'balanced' ? 8 : 11;
-        const ORBIT_TILT_X = THREE.MathUtils.degToRad(9.5);
-        const ORBIT_TILT_Z = THREE.MathUtils.degToRad(-11.5);
+        const ORBIT_LOGO_RADIUS = window.innerWidth <= 600 ? 1.86 : 1.92;
+        const ORBIT_LOGO_DEPTH = window.innerWidth <= 600 ? 0.13 : 0.15;
+        const ORBIT_LOGO_HEIGHT = window.innerWidth <= 600 ? 0.98 : 1.08;
+        const ORBIT_LOGO_ARC = THREE.MathUtils.degToRad(window.innerWidth <= 600 ? 108 : 116);
+        const ORBIT_LOGO_SEGMENTS = renderQuality === 'low' ? 64 : renderQuality === 'balanced' ? 96 : 144;
+        const ORBIT_LOGO_DEPTH_LAYERS = renderQuality === 'low' ? 5 : renderQuality === 'balanced' ? 7 : 9;
+        const ORBIT_TILT_X = THREE.MathUtils.degToRad(11);
+        const ORBIT_TILT_Z = THREE.MathUtils.degToRad(-10);
 
-        // Two nested groups keep the orbit plane genuinely centered on Earth:
-        // root = fixed inclination, spinner = rotation around that inclined orbit.
+        function createLogoEnvMap() {
+            const size = 96;
+            function makeFace(stops, glowX, glowY, glowAlpha) {
+                const c = document.createElement('canvas');
+                c.width = c.height = size;
+                const ctx = c.getContext('2d');
+                const g = ctx.createLinearGradient(0, 0, 0, size);
+                for (const [pos, color] of stops) g.addColorStop(pos, color);
+                ctx.fillStyle = g;
+                ctx.fillRect(0, 0, size, size);
+                const glow = ctx.createRadialGradient(glowX, glowY, 2, glowX, glowY, size * 0.75);
+                glow.addColorStop(0, `rgba(255,255,255,${glowAlpha})`);
+                glow.addColorStop(0.25, 'rgba(210,227,248,0.20)');
+                glow.addColorStop(0.58, 'rgba(112,138,170,0.08)');
+                glow.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = glow;
+                ctx.fillRect(0, 0, size, size);
+                return c;
+            }
+            const faces = [
+                makeFace([[0,'#bcc4cc'],[0.55,'#2b3440'],[1,'#0a0f14']], 20, 18, 0.95),
+                makeFace([[0,'#87919b'],[0.5,'#1a222c'],[1,'#05070a']], 70, 20, 0.72),
+                makeFace([[0,'#9ca5ae'],[0.52,'#26303a'],[1,'#080b0f']], 24, 14, 0.78),
+                makeFace([[0,'#808892'],[0.56,'#18212a'],[1,'#05070a']], 76, 22, 0.72),
+                makeFace([[0,'#ffffff'],[0.28,'#9daab8'],[1,'#27313a']], 42, 18, 1.0),
+                makeFace([[0,'#596675'],[0.48,'#11171d'],[1,'#030405']], 46, 32, 0.34)
+            ];
+            const cube = new THREE.CubeTexture(faces);
+            cube.needsUpdate = true;
+            if ('encoding' in cube && THREE.sRGBEncoding) cube.encoding = THREE.sRGBEncoding;
+            return cube;
+        }
+
+        const logoEnvMap = createLogoEnvMap();
         const orbitLogoRoot = new THREE.Group();
         orbitLogoRoot.rotation.order = 'ZXY';
-        orbitLogoRoot.rotation.x = ORBIT_TILT_X;
-        orbitLogoRoot.rotation.z = ORBIT_TILT_Z;
         scene.add(orbitLogoRoot);
-
         const orbitLogoSpinner = new THREE.Group();
         orbitLogoRoot.add(orbitLogoSpinner);
 
         let orbitLogoLoaded = false;
-        let orbitLogoAngle = -0.04;
+        let orbitLogoAngle = 0.0;
         const orbitLogoMeshes = [];
         const orbitLogoMaterials = [];
+        let orbitLogoFallback = null;
 
         function makeCurvedLogoGeometry(radius) {
             const geom = new THREE.CylinderGeometry(
@@ -1963,7 +1993,11 @@
             return geom;
         }
 
-        function clearOrbitLogoMeshes() {
+        function clearOrbitLogo() {
+            if (orbitLogoFallback) {
+                orbitLogoFallback.remove();
+                orbitLogoFallback = null;
+            }
             orbitLogoMeshes.forEach((mesh) => {
                 orbitLogoSpinner.remove(mesh);
                 mesh.geometry?.dispose?.();
@@ -1974,9 +2008,16 @@
             orbitLogoLoaded = false;
         }
 
-        function buildTrue3DOrbitLogo(texture) {
-            clearOrbitLogoMeshes();
+        function addOrbitMesh(mesh, material, renderOrder) {
+            mesh.rotation.y = Math.PI;
+            mesh.renderOrder = renderOrder;
+            orbitLogoSpinner.add(mesh);
+            orbitLogoMeshes.push(mesh);
+            orbitLogoMaterials.push(material);
+        }
 
+        function buildOrbitLogo(texture) {
+            clearOrbitLogo();
             texture.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
             texture.wrapS = THREE.ClampToEdgeWrapping;
             texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -1985,83 +2026,74 @@
             if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
             texture.needsUpdate = true;
 
-            // Real extrusion: complete curved PNG silhouettes are layered radially.
-            // They share the exact same UVs, so there are no vertical strip/seam artifacts.
+            const innerRadius = ORBIT_LOGO_RADIUS - ORBIT_LOGO_DEPTH;
             for (let i = 0; i < ORBIT_LOGO_DEPTH_LAYERS; i++) {
                 const t = ORBIT_LOGO_DEPTH_LAYERS <= 1 ? 1 : i / (ORBIT_LOGO_DEPTH_LAYERS - 1);
-                const radius = ORBIT_LOGO_RADIUS - ORBIT_LOGO_DEPTH + ORBIT_LOGO_DEPTH * t;
+                const radius = innerRadius + ORBIT_LOGO_DEPTH * t;
                 const depthMat = new THREE.MeshPhysicalMaterial({
                     map: texture,
-                    color: new THREE.Color().setHSL(0.58, 0.08, 0.08 + t * 0.055),
-                    metalness: 0.72,
-                    roughness: 0.28,
-                    clearcoat: 0.62,
-                    clearcoatRoughness: 0.18,
+                    color: new THREE.Color().setHSL(0.60, 0.10, 0.10 + t * 0.07),
+                    transparent: true,
+                    alphaTest: 0.14,
                     side: THREE.DoubleSide,
-                    transparent: false,
-                    alphaTest: 0.075,
-                    depthTest: true,
-                    depthWrite: true
+                    metalness: 0.82,
+                    roughness: 0.34,
+                    clearcoat: 0.62,
+                    clearcoatRoughness: 0.20,
+                    envMap: logoEnvMap,
+                    envMapIntensity: 0.52,
+                    depthWrite: true,
+                    depthTest: true
                 });
                 const depthMesh = new THREE.Mesh(makeCurvedLogoGeometry(radius), depthMat);
-                depthMesh.renderOrder = 5 + i;
-                orbitLogoSpinner.add(depthMesh);
-                orbitLogoMeshes.push(depthMesh);
-                orbitLogoMaterials.push(depthMat);
+                addOrbitMesh(depthMesh, depthMat, 5 + i);
             }
 
-            // One continuous front face. MeshPhysicalMaterial means the SAME PointLight
-            // that lights Earth creates the logo's diffuse and clear-coat specular highlight.
             const faceMat = new THREE.MeshPhysicalMaterial({
                 map: texture,
                 color: 0xffffff,
-                metalness: 0.34,
-                roughness: 0.19,
-                clearcoat: 1.0,
-                clearcoatRoughness: 0.055,
-                reflectivity: 0.96,
+                transparent: true,
+                alphaTest: 0.14,
                 side: THREE.DoubleSide,
-                transparent: false,
-                alphaTest: 0.075,
-                depthTest: true,
-                depthWrite: true
+                metalness: 0.18,
+                roughness: 0.42,
+                clearcoat: 0.95,
+                clearcoatRoughness: 0.07,
+                reflectivity: 0.92,
+                envMap: logoEnvMap,
+                envMapIntensity: 0.34,
+                depthWrite: true,
+                depthTest: true
             });
-            const faceMesh = new THREE.Mesh(makeCurvedLogoGeometry(ORBIT_LOGO_RADIUS + 0.006), faceMat);
-            faceMesh.renderOrder = 40;
-            orbitLogoSpinner.add(faceMesh);
-            orbitLogoMeshes.push(faceMesh);
-            orbitLogoMaterials.push(faceMat);
+            const faceMesh = new THREE.Mesh(makeCurvedLogoGeometry(ORBIT_LOGO_RADIUS + 0.004), faceMat);
+            addOrbitMesh(faceMesh, faceMat, 40);
 
-            // Thin polished outer skin. It uses the same PNG and the same physical light,
-            // but a lower roughness so the moving highlight is clearly visible.
             const glossMat = new THREE.MeshPhysicalMaterial({
                 map: texture,
-                color: 0xffffff,
-                metalness: 0.12,
-                roughness: 0.055,
-                clearcoat: 1.0,
-                clearcoatRoughness: 0.018,
-                reflectivity: 1.0,
-                side: THREE.DoubleSide,
+                color: 0xf4f8ff,
                 transparent: true,
-                opacity: 0.22,
-                alphaTest: 0.12,
-                depthTest: true,
+                opacity: 0.16,
+                alphaTest: 0.24,
+                side: THREE.DoubleSide,
+                metalness: 0.78,
+                roughness: 0.05,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.02,
+                envMap: logoEnvMap,
+                envMapIntensity: 1.08,
                 depthWrite: false,
+                depthTest: true,
                 blending: THREE.AdditiveBlending
             });
-            const glossMesh = new THREE.Mesh(makeCurvedLogoGeometry(ORBIT_LOGO_RADIUS + 0.014), glossMat);
-            glossMesh.renderOrder = 41;
-            orbitLogoSpinner.add(glossMesh);
-            orbitLogoMeshes.push(glossMesh);
-            orbitLogoMaterials.push(glossMat);
+            const glossMesh = new THREE.Mesh(makeCurvedLogoGeometry(ORBIT_LOGO_RADIUS + 0.016), glossMat);
+            addOrbitMesh(glossMesh, glossMat, 41);
 
+            orbitLogoRoot.rotation.x = ORBIT_TILT_X;
+            orbitLogoRoot.rotation.z = ORBIT_TILT_Z;
+            orbitLogoSpinner.rotation.y = orbitLogoAngle;
             orbitLogoLoaded = true;
         }
 
-        // Safety fallback is only used if every CORS-readable texture endpoint fails.
-        // It keeps the original PNG visible, but the primary path above is the real 3D mesh.
-        let orbitLogoFallback = null;
         function showOrbitLogoFallback() {
             if (orbitLogoFallback) return;
             orbitLogoFallback = document.createElement('img');
@@ -2072,49 +2104,41 @@
                 position: 'absolute',
                 left: '50%',
                 top: '50%',
-                width: window.innerWidth <= 600 ? '46%' : '40%',
+                width: window.innerWidth <= 600 ? '52%' : '46%',
                 height: 'auto',
-                transform: 'translate(-50%,-50%) rotate(-6deg)',
-                filter: 'drop-shadow(6px 8px 0 rgba(5,8,12,.88)) drop-shadow(10px 12px 8px rgba(0,0,0,.62))',
+                transform: 'translate(-50%, -50%) rotate(-8deg)',
                 zIndex: '3',
+                opacity: '0.95',
+                filter: 'drop-shadow(0 3px 0 rgba(12,16,22,.95)) drop-shadow(0 7px 10px rgba(0,0,0,.58))',
                 pointerEvents: 'none'
             });
             globeContainer.appendChild(orbitLogoFallback);
         }
 
-        function loadTrue3DLogoTexture(index = 0) {
+        function loadOrbitLogoTexture(index = 0) {
             if (index >= SP1DER_LOGO_TEXTURE_URLS.length) {
-                console.warn('SP1DER PNG could not be uploaded to WebGL; showing safe PNG fallback.');
+                console.warn('SP1DER logo texture could not be loaded from remote URLs; showing safe visible fallback.');
                 showOrbitLogoFallback();
                 return;
             }
-
             const loader = new THREE.TextureLoader();
             loader.setCrossOrigin('anonymous');
             loader.load(
                 SP1DER_LOGO_TEXTURE_URLS[index],
-                (texture) => {
-                    if (orbitLogoFallback) {
-                        orbitLogoFallback.remove();
-                        orbitLogoFallback = null;
-                    }
-                    buildTrue3DOrbitLogo(texture);
-                },
+                (texture) => buildOrbitLogo(texture),
                 undefined,
-                () => loadTrue3DLogoTexture(index + 1)
+                () => loadOrbitLogoTexture(index + 1)
             );
         }
-        loadTrue3DLogoTexture();
+        loadOrbitLogoTexture();
 
         function updateOrbitLogo(deltaTime) {
             if (!orbitLogoLoaded) return;
-            const speed = isPlayingState ? 0.29 : 0.155;
+            const speed = isPlayingState ? 0.28 : 0.16;
             orbitLogoAngle = (orbitLogoAngle + speed * deltaTime) % (Math.PI * 2);
             orbitLogoSpinner.rotation.y = orbitLogoAngle;
-
-            // Tiny breathing tilt keeps it alive without moving the orbit away from Earth's center.
-            orbitLogoRoot.rotation.x = ORBIT_TILT_X + Math.sin(orbitLogoAngle * 0.56) * 0.012;
-            orbitLogoRoot.rotation.z = ORBIT_TILT_Z + Math.cos(orbitLogoAngle * 0.43) * 0.010;
+            orbitLogoRoot.rotation.x = ORBIT_TILT_X + Math.sin(orbitLogoAngle * 0.38) * 0.008;
+            orbitLogoRoot.rotation.z = ORBIT_TILT_Z + Math.cos(orbitLogoAngle * 0.31) * 0.007;
         }
 
         let lastTime = performance.now();
@@ -2350,7 +2374,7 @@
         
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=46', { updateViaCache: 'none' })
+                navigator.serviceWorker.register('./sw.js?v=47', { updateViaCache: 'none' })
                     .then((registration) => registration.update())
                     .catch((err) => { console.warn('Service worker registration failed:', err); });
             });
