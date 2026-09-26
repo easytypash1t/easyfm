@@ -393,15 +393,15 @@
         #start-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle, rgba(10, 10, 10, 0.96) 0%, rgba(0, 0, 0, 0.99) 100%);
+            background: radial-gradient(circle at 50% 45%, rgba(5, 5, 5, 0.50) 0%, rgba(0, 0, 0, 0.66) 58%, rgba(0, 0, 0, 0.80) 100%);
             z-index: 30;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             transition: opacity 0.3s ease;
         }
 
@@ -1668,9 +1668,11 @@
             powerPreference: "high-performance"
         });
         if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
-        if ('physicallyCorrectLights' in renderer) renderer.physicallyCorrectLights = true;
+        // Use predictable scene-light values. Both the globe and the 3D emblem are lit
+        // by the same directional "sun" below; reflections stay secondary.
+        if ('physicallyCorrectLights' in renderer) renderer.physicallyCorrectLights = false;
         if (THREE.ACESFilmicToneMapping) renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = renderQuality === 'low' ? 0.72 : renderQuality === 'balanced' ? 0.76 : 0.80;
+        renderer.toneMappingExposure = renderQuality === 'low' ? 0.92 : renderQuality === 'balanced' ? 0.96 : 1.0;
 
         const pixelRatioCap = renderQuality === 'high' ? 1.15 : renderQuality === 'balanced' ? 1.0 : 0.85;
         const minimumPixelRatio = renderQuality === 'high' ? 0.82 : renderQuality === 'balanced' ? 0.76 : 0.68;
@@ -1711,9 +1713,10 @@
         const geometry = new THREE.SphereGeometry(baseRadius, segments, segments);
         const material = new THREE.MeshStandardMaterial({
             map: null,
-            roughness: 0.72,
+            color: 0xffffff,
+            roughness: 0.76,
             metalness: 0.0,
-            // No emissive/self-lighting. The Earth is illuminated only by sunLight.
+            // No emissive/self-lighting: the texture is shaded by the shared sun.
             emissive: 0x000000,
             emissiveIntensity: 0
         });
@@ -1740,14 +1743,25 @@
         const globeMesh = new THREE.Mesh(geometry, material);
         scene.add(globeMesh);
 
-        const sunLight = new THREE.PointLight(
-            0xffdfc2,
-            renderQuality === 'low' ? 34 : renderQuality === 'balanced' ? 42 : 50,
-            0,
-            2.0
+        // One shared key light for the Earth and the orbiting emblem. A directional
+        // light behaves like sunlight: every object receives light from the same angle.
+        const sunLight = new THREE.DirectionalLight(
+            0xffdfbf,
+            renderQuality === 'low' ? 1.90 : renderQuality === 'balanced' ? 2.10 : 2.28
         );
-        sunLight.position.set(4.6, 2.45, 5.35);
+        sunLight.position.set(5.4, 2.9, 6.4);
+        sunLight.target.position.set(0, 0, 0);
         scene.add(sunLight);
+        scene.add(sunLight.target);
+
+        // Soft sky bounce only keeps the unlit hemisphere readable. It is deliberately
+        // blue-grey instead of white, so the globe stays natural rather than milky.
+        const nightFill = new THREE.HemisphereLight(
+            0x667785,
+            0x07090c,
+            renderQuality === 'low' ? 0.34 : renderQuality === 'balanced' ? 0.38 : 0.42
+        );
+        scene.add(nightFill);
 
         const SP1DER_LOGO_ORIGINAL = 'https://i.hizliresim.com/cd44fi2l.png';
         const SP1DER_LOGO_ICON = 'https://i.hizliresim.com/texrnzfw.png';
@@ -1765,8 +1779,8 @@
 
         let orbitLogoRig = null;
         let orbitLogoBody = null;
-        let orbitLogoAngle = 0.0;
-        const orbitLogoRadius = baseRadius + 0.38;
+        let orbitLogoAngle = -0.34;
+        const orbitLogoRadius = baseRadius + 0.15;
 
         function createChromeEnvironmentMap() {
             const makeFace = (direction = 1, cool = false) => {
@@ -1782,20 +1796,20 @@
                 );
                 grad.addColorStop(0.00, '#020304');
                 grad.addColorStop(0.10, cool ? '#15202a' : '#151719');
-                grad.addColorStop(0.25, '#aeb9c1');
+                grad.addColorStop(0.25, '#7f898f');
                 grad.addColorStop(0.34, '#5f6971');
                 grad.addColorStop(0.48, '#080a0c');
-                grad.addColorStop(0.62, cool ? '#7f9ead' : '#98a4aa');
-                grad.addColorStop(0.70, '#c7cdd1');
+                grad.addColorStop(0.62, cool ? '#617783' : '#727c82');
+                grad.addColorStop(0.70, '#939ca1');
                 grad.addColorStop(0.80, '#20262b');
                 grad.addColorStop(1.00, '#010202');
                 ctx.fillStyle = grad;
                 ctx.fillRect(0, 0, 256, 256);
 
                 const shine = ctx.createRadialGradient(72, 54, 2, 72, 54, 130);
-                shine.addColorStop(0, 'rgba(255,244,232,.62)');
-                shine.addColorStop(.12, 'rgba(173,193,204,.26)');
-                shine.addColorStop(.40, 'rgba(90,130,160,.10)');
+                shine.addColorStop(0, 'rgba(255,221,190,.24)');
+                shine.addColorStop(.12, 'rgba(135,157,171,.12)');
+                shine.addColorStop(.40, 'rgba(65,91,108,.045)');
                 shine.addColorStop(1, 'rgba(0,0,0,0)');
                 ctx.fillStyle = shine;
                 ctx.fillRect(0, 0, 256, 256);
@@ -1862,33 +1876,33 @@
             texture.needsUpdate = true;
 
             orbitLogoRig = new THREE.Group();
-            orbitLogoRig.rotation.x = -0.12;
-            orbitLogoRig.rotation.z = 0.045;
+            orbitLogoRig.rotation.x = -0.08;
+            orbitLogoRig.rotation.z = 0.035;
             scene.add(orbitLogoRig);
 
             orbitLogoBody = new THREE.Group();
-            orbitLogoBody.rotation.x = -0.08;
+            orbitLogoBody.rotation.x = -0.05;
             orbitLogoBody.rotation.y = 0;
             orbitLogoBody.rotation.z = 0;
             orbitLogoRig.add(orbitLogoBody);
 
             const qualityScale = renderQuality === 'low' ? 0.91 : renderQuality === 'balanced' ? 0.97 : 1.0;
-            const shellHeight = 1.56 * qualityScale;
-            const thetaLength = 1.96 * qualityScale;
-            const radialSegments = renderQuality === 'low' ? 112 : renderQuality === 'balanced' ? 176 : 256;
-            const depthLayers = renderQuality === 'low' ? 10 : renderQuality === 'balanced' ? 14 : 18;
-            const totalDepth = renderQuality === 'low' ? 0.050 : renderQuality === 'balanced' ? 0.060 : 0.068;
+            const shellHeight = 1.02 * qualityScale;
+            const thetaLength = 1.36 * qualityScale;
+            const radialSegments = renderQuality === 'low' ? 96 : renderQuality === 'balanced' ? 144 : 192;
+            const depthLayers = renderQuality === 'low' ? 7 : renderQuality === 'balanced' ? 10 : 12;
+            const totalDepth = renderQuality === 'low' ? 0.032 : renderQuality === 'balanced' ? 0.038 : 0.043;
 
             const frontMaterial = new THREE.MeshPhysicalMaterial({
                 alphaMap: texture,
-                color: 0x8f969c,
-                metalness: 0.88,
-                roughness: 0.30,
-                clearcoat: 0.34,
-                clearcoatRoughness: 0.18,
-                reflectivity: 0.72,
+                color: 0x697077,
+                metalness: 0.72,
+                roughness: 0.38,
+                clearcoat: 0.16,
+                clearcoatRoughness: 0.28,
+                reflectivity: 0.46,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.24 : 0.42,
+                envMapIntensity: renderQuality === 'low' ? 0.10 : renderQuality === 'balanced' ? 0.14 : 0.17,
                 alphaTest: 0.035,
                 transparent: false,
                 side: THREE.DoubleSide,
@@ -1898,14 +1912,14 @@
 
             const sideMaterial = new THREE.MeshPhysicalMaterial({
                 alphaMap: texture,
-                color: 0x2b3035,
-                metalness: 0.80,
-                roughness: 0.42,
-                clearcoat: 0.22,
-                clearcoatRoughness: 0.22,
-                reflectivity: 0.66,
+                color: 0x343a40,
+                metalness: 0.68,
+                roughness: 0.50,
+                clearcoat: 0.08,
+                clearcoatRoughness: 0.34,
+                reflectivity: 0.40,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.16 : 0.28,
+                envMapIntensity: renderQuality === 'low' ? 0.07 : renderQuality === 'balanced' ? 0.10 : 0.12,
                 alphaTest: 0.035,
                 transparent: false,
                 side: THREE.DoubleSide,
@@ -1915,14 +1929,14 @@
 
             const bevelMaterial = new THREE.MeshPhysicalMaterial({
                 alphaMap: texture,
-                color: 0xa8afb5,
-                metalness: 0.90,
-                roughness: 0.27,
-                clearcoat: 0.50,
-                clearcoatRoughness: 0.11,
-                reflectivity: 0.82,
+                color: 0x777f86,
+                metalness: 0.74,
+                roughness: 0.35,
+                clearcoat: 0.18,
+                clearcoatRoughness: 0.24,
+                reflectivity: 0.48,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: renderQuality === 'low' ? 0.24 : 0.46,
+                envMapIntensity: renderQuality === 'low' ? 0.10 : renderQuality === 'balanced' ? 0.14 : 0.18,
                 alphaTest: 0.035,
                 transparent: false,
                 side: THREE.DoubleSide,
@@ -1933,12 +1947,12 @@
             const backMaterial = new THREE.MeshPhysicalMaterial({
                 alphaMap: texture,
                 color: 0x30363b,
-                metalness: 0.78,
-                roughness: 0.42,
-                clearcoat: 0.18,
-                clearcoatRoughness: 0.26,
+                metalness: 0.66,
+                roughness: 0.52,
+                clearcoat: 0.06,
+                clearcoatRoughness: 0.36,
                 envMap: chromeEnvironmentMap,
-                envMapIntensity: 0.22,
+                envMapIntensity: renderQuality === 'low' ? 0.06 : 0.09,
                 alphaTest: 0.035,
                 transparent: false,
                 side: THREE.DoubleSide,
@@ -1959,7 +1973,7 @@
             }
             
             const backGeometry = createCurvedLogoGeometry(
-                orbitLogoRadius - totalDepth - 0.006,
+                orbitLogoRadius - totalDepth - 0.004,
                 shellHeight * 0.955,
                 thetaLength * 0.968,
                 radialSegments
@@ -1973,7 +1987,7 @@
             const bevelSteps = 1;
             for (let i = 0; i < bevelSteps; i++) {
                 const t = 0;
-                const r = orbitLogoRadius + 0.007;
+                const r = orbitLogoRadius + 0.004;
                 const h = shellHeight * 1.004;
                 const th = thetaLength * 1.003;
                 const g = createCurvedLogoGeometry(r, h, th, radialSegments);
@@ -1986,7 +2000,7 @@
 
             // Main face.
             const frontGeometry = createCurvedLogoGeometry(
-                orbitLogoRadius + 0.022,
+                orbitLogoRadius + 0.010,
                 shellHeight,
                 thetaLength,
                 radialSegments
@@ -2097,8 +2111,23 @@
             return maskTexture;
         }
 
+        function loadRawLogoTexture(source) {
+            return new Promise((resolve, reject) => {
+                const loader = new THREE.TextureLoader();
+                loader.setCrossOrigin('anonymous');
+                loader.load(
+                    source,
+                    (texture) => resolve(texture),
+                    undefined,
+                    (error) => reject(error || new Error('Texture load failed'))
+                );
+            });
+        }
+
         async function loadOrbitLogoTexture(urls) {
             let lastError = null;
+
+            // Preferred path: create a clean monochrome mask from the linked logo.
             for (const source of urls) {
                 try {
                     const response = await fetch(source, {
@@ -2111,14 +2140,29 @@
                     if (!blob.size) throw new Error('Empty logo response');
                     const maskTexture = await blobToLogoMaskTexture(blob);
                     buildOrbitLogo(maskTexture);
-                    console.info('SP1DER 3D logo loaded:', source);
+                    console.info('SP1DER 3D logo mask loaded:', source);
                     return;
                 } catch (error) {
                     lastError = error;
-                    console.warn('SP1DER 3D logo source failed:', source, error);
+                    console.warn('SP1DER 3D logo mask source failed:', source, error);
                 }
             }
-            console.error('SP1DER 3D logo could not be built from any remote Hızlıresim source.', lastError || '');
+
+            // Fallback: still use the remote linked PNG directly as an alpha texture.
+            // No local/base64 image is embedded into index.html.
+            for (const source of urls) {
+                try {
+                    const rawTexture = await loadRawLogoTexture(source);
+                    buildOrbitLogo(rawTexture);
+                    console.info('SP1DER 3D logo direct texture loaded:', source);
+                    return;
+                } catch (error) {
+                    lastError = error;
+                    console.warn('SP1DER 3D logo direct source failed:', source, error);
+                }
+            }
+
+            console.error('SP1DER 3D logo could not be built from any remote linked source.', lastError || '');
         }
 
         loadOrbitLogoTexture(SP1DER_LOGO_TEXTURES);
@@ -2163,19 +2207,20 @@
             lastTime = currentTime;
             if (isNaN(deltaTime) || deltaTime > 0.1) return;
 
-            const globeSpeed = isPlayingState ? 0.6 : 0.15;
-            const logoOrbitSpeed = isPlayingState ? 0.56 : 0.16;
+            const globeSpeed = isPlayingState ? 0.52 : 0.13;
+            // The emblem always orbits; playback only makes the motion more energetic.
+            const logoOrbitSpeed = isPlayingState ? 0.46 : 0.23;
             globeMesh.rotation.y += globeSpeed * deltaTime;
 
             if (orbitLogoRig && orbitLogoBody) {
                 orbitLogoAngle -= logoOrbitSpeed * deltaTime;
                 orbitLogoRig.rotation.y = orbitLogoAngle;
-                orbitLogoRig.rotation.x = -0.18 + Math.sin(orbitLogoAngle * 0.34) * 0.022;
-                orbitLogoRig.rotation.z = 0.09 + Math.cos(orbitLogoAngle * 0.27) * 0.016;
+                orbitLogoRig.rotation.x = -0.10 + Math.sin(orbitLogoAngle * 0.34) * 0.016;
+                orbitLogoRig.rotation.z = 0.045 + Math.cos(orbitLogoAngle * 0.27) * 0.012;
 
-                orbitLogoBody.rotation.y = Math.sin(orbitLogoAngle * 0.52) * 0.055;
-                orbitLogoBody.rotation.x = -0.08 + Math.cos(orbitLogoAngle * 0.72) * 0.040;
-                orbitLogoBody.rotation.z = Math.sin(orbitLogoAngle * 0.61) * 0.028;
+                orbitLogoBody.rotation.y = Math.sin(orbitLogoAngle * 0.52) * 0.028;
+                orbitLogoBody.rotation.x = -0.05 + Math.cos(orbitLogoAngle * 0.72) * 0.022;
+                orbitLogoBody.rotation.z = Math.sin(orbitLogoAngle * 0.61) * 0.014;
 
             }
 
@@ -2340,33 +2385,7 @@
             if (userHasClicked && actualPlayerStatePlaying) setListeningPresence(true);
         });
 
-        const wrapper = document.getElementById('main-wrapper');
-        if (matchMedia('(pointer:fine)').matches && !prefersReducedMotion.matches) {
-            let pointerFrame = 0;
-            let pointerX = innerWidth / 2;
-            let pointerY = innerHeight / 2;
-
-            addEventListener('pointermove', (e) => {
-                pointerX = e.clientX;
-                pointerY = e.clientY;
-                if (pointerFrame) return;
-
-                pointerFrame = requestAnimationFrame(() => {
-                    pointerFrame = 0;
-                    const nx = pointerX / innerWidth - 0.5;
-                    const ny = pointerY / innerHeight - 0.5;
-                    wrapper.style.transform = `rotateY(${nx * 1.15}deg) rotateX(${-ny * 0.75}deg)`;
-                });
-            }, { passive: true });
-
-            addEventListener('pointerleave', () => {
-                if (pointerFrame) {
-                    cancelAnimationFrame(pointerFrame);
-                    pointerFrame = 0;
-                }
-                wrapper.style.transform = 'rotateY(0deg) rotateX(0deg)';
-            });
-        }
+        // Pointer-follow parallax/light sweep intentionally disabled.
         
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             window.addEventListener('load', () => {
