@@ -215,9 +215,8 @@
             filter: drop-shadow(0 0 18px rgba(214,226,242,.10)) drop-shadow(0 0 44px rgba(90,120,155,.055));
         }
 
-        /* Curved PNG orbit: the exact Hızlıresim artwork is split into narrow
-           perspective slices. Back slices sit under the WebGL globe, front slices
-           sit above it, so Earth occludes the PNG naturally without opacity hacks. */
+        /* Curved PNG orbit: exact Hızlıresim artwork. The strips overlap slightly
+           to remove hairline seams, while multiple rear layers create real visual depth. */
         .orbit-logo-layer {
             position: absolute;
             inset: 0;
@@ -235,42 +234,53 @@
             top: 0;
             transform-origin: 50% 50%;
             overflow: visible;
-            will-change: transform, width, height, filter;
+            will-change: transform, width, height;
             pointer-events: none;
+            isolation: isolate;
         }
 
         .orbit-logo-face,
         .orbit-logo-depth,
         .orbit-logo-shine {
             position: absolute;
-            inset: 0;
+            inset: -0.75px;
             background-repeat: no-repeat;
             background-color: transparent;
             pointer-events: none;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
         }
 
         .orbit-logo-depth {
             z-index: 0;
-            opacity: .82;
-            filter: brightness(.24) saturate(.72) contrast(1.28);
+            opacity: .94;
+            filter: brightness(.18) saturate(.72) contrast(1.32);
         }
 
         .orbit-logo-face {
-            z-index: 1;
-            filter: inherit;
+            z-index: 10;
+            transform: translateZ(0);
         }
 
         .orbit-logo-shine {
-            z-index: 2;
-            background: linear-gradient(108deg, transparent 15%, rgba(210,226,245,.08) 34%, rgba(255,255,255,.88) 50%, rgba(188,214,240,.14) 66%, transparent 84%);
+            z-index: 12;
+            background: linear-gradient(102deg,
+                rgba(255,255,255,0) 4%,
+                rgba(185,211,238,.10) 28%,
+                rgba(245,250,255,.70) 48%,
+                rgba(255,255,255,.96) 54%,
+                rgba(170,202,236,.16) 70%,
+                rgba(255,255,255,0) 96%);
             mix-blend-mode: screen;
             opacity: 0;
             -webkit-mask-repeat: no-repeat;
             mask-repeat: no-repeat;
-            will-change: opacity;
+            -webkit-mask-size: 100% 100%;
+            mask-size: 100% 100%;
+            will-change: opacity, filter;
         }
 
-        html[data-quality="low"] .orbit-logo-shine { display: none; }
+        html[data-quality="low"] .orbit-logo-depth.depth-extra { display: none; }
 
         .status-bar {
             display: flex;
@@ -1814,235 +1824,207 @@
         scene.add(keyLight);
 
         // --- CURVED / REFLECTIVE PNG SP1DER ORBIT ---
-        // The visible emblem must remain the user's original Hızlıresim PNG.
-        // To make it truly 3D (without the previous striped DOM slices), the PNG is
-        // now used as a real WebGL texture on curved cylindrical shell meshes.
-        const SP1DER_LOGO_TEXTURES = [
-            'https://images.weserv.nl/?url=https%3A%2F%2Fi.hizliresim.com%2Fcd44fi2l.png&output=png',
-            'https://wsrv.nl/?url=https%3A%2F%2Fi.hizliresim.com%2Fcd44fi2l.png&output=png',
-            'https://i.hizliresim.com/cd44fi2l.png'
-        ];
+        // The visible emblem is ALWAYS the user's exact Hızlıresim PNG. It stays a
+        // normal browser image/background (no WebGL/CORS dependency), while overlapping
+        // curved slices + depth layers give it a smooth 3D shell around Earth.
+        const SP1DER_LOGO_URL = 'https://i.hizliresim.com/cd44fi2l.png';
+        const ORBIT_LOGO_SLICE_COUNT = renderQuality === 'low' ? 30 : renderQuality === 'balanced' ? 38 : 48;
+        const ORBIT_LOGO_ARC = THREE.MathUtils.degToRad(82);
         const ORBIT_LOGO_RADIUS = 1.94;
-        const ORBIT_LOGO_HEIGHT = window.innerWidth <= 600 ? 1.58 : 1.78;
-        const ORBIT_LOGO_ARC = THREE.MathUtils.degToRad(86);
-        const ORBIT_TILT_X = THREE.MathUtils.degToRad(10.5);
-        const ORBIT_TILT_Z = THREE.MathUtils.degToRad(-10.5);
-        const ORBIT_LOGO_DEPTH = 0.092;
-        const ORBIT_LOGO_DEPTH_LAYERS = renderQuality === 'low' ? 4 : renderQuality === 'balanced' ? 6 : 8;
-        const ORBIT_LOGO_RADIAL_SEGMENTS = renderQuality === 'low' ? 56 : renderQuality === 'balanced' ? 84 : 120;
+        const ORBIT_LOGO_HEIGHT = window.innerWidth <= 600 ? 1.54 : 1.70;
+        const ORBIT_TILT_X = THREE.MathUtils.degToRad(8.5);
+        const ORBIT_TILT_Z = THREE.MathUtils.degToRad(-8.5);
+        const ORBIT_DEPTH_LAYERS = renderQuality === 'low' ? 4 : renderQuality === 'balanced' ? 5 : 7;
 
-        function createLogoEnvironmentMap() {
-            const size = 96;
-            function face(baseTop, baseBottom, highlightX, highlightY, intensity) {
-                const c = document.createElement('canvas');
-                c.width = c.height = size;
-                const ctx = c.getContext('2d');
-                const grad = ctx.createLinearGradient(0, 0, 0, size);
-                grad.addColorStop(0, baseTop);
-                grad.addColorStop(1, baseBottom);
-                ctx.fillStyle = grad;
-                ctx.fillRect(0, 0, size, size);
+        const orbitLogoBack = document.createElement('div');
+        orbitLogoBack.id = 'orbit-logo-back';
+        orbitLogoBack.className = 'orbit-logo-layer';
+        const orbitLogoFront = document.createElement('div');
+        orbitLogoFront.id = 'orbit-logo-front';
+        orbitLogoFront.className = 'orbit-logo-layer';
+        globeContainer.insertBefore(orbitLogoBack, renderer.domElement);
+        globeContainer.appendChild(orbitLogoFront);
 
-                const glow = ctx.createRadialGradient(highlightX, highlightY, 1, highlightX, highlightY, size * 0.72);
-                glow.addColorStop(0, `rgba(255,255,255,${intensity})`);
-                glow.addColorStop(0.22, 'rgba(214,232,255,0.24)');
-                glow.addColorStop(0.55, 'rgba(114,148,184,0.09)');
-                glow.addColorStop(1, 'rgba(0,0,0,0)');
-                ctx.fillStyle = glow;
-                ctx.fillRect(0, 0, size, size);
-                return c;
-            }
-            const faces = [
-                face('#9ba7b1', '#0a0e12', 26, 22, 0.95),
-                face('#7f8a94', '#07090b', 70, 24, 0.78),
-                face('#8a969f', '#090c0f', 22, 18, 0.72),
-                face('#7b8590', '#07090b', 74, 30, 0.74),
-                face('#b4b8bc', '#222b33', 42, 20, 0.88),
-                face('#3e4954', '#050608', 48, 34, 0.42)
-            ];
-            const cube = new THREE.CubeTexture(faces);
-            cube.needsUpdate = true;
-            if ('encoding' in cube && THREE.sRGBEncoding) cube.encoding = THREE.sRGBEncoding;
-            return cube;
+        const orbitLogoSlices = [];
+        let orbitLogoAngle = -0.10;
+        let orbitLogoImageReady = false;
+
+        function applyLogoArtwork(el, index) {
+            const bgPos = ORBIT_LOGO_SLICE_COUNT <= 1 ? 50 : (index / (ORBIT_LOGO_SLICE_COUNT - 1)) * 100;
+            el.style.backgroundImage = `url("${SP1DER_LOGO_URL}")`;
+            el.style.backgroundSize = `${ORBIT_LOGO_SLICE_COUNT * 100}% 100%`;
+            el.style.backgroundPosition = `${bgPos}% 50%`;
         }
 
-        const logoEnvironmentMap = createLogoEnvironmentMap();
-        let orbitLogoGroup = null;
-        let orbitLogoMeshes = [];
-        let orbitLogoLoaded = false;
-        let orbitLogoAngle = -0.08;
+        function makeLogoSlice(index) {
+            const slice = document.createElement('div');
+            slice.className = 'orbit-logo-slice';
+            slice.setAttribute('aria-hidden', 'true');
 
-        function disposeOrbitLogo() {
-            if (!orbitLogoGroup) return;
-            const disposed = new Set();
-            orbitLogoGroup.traverse((child) => {
-                if (child.geometry) child.geometry.dispose();
-                if (child.material) {
-                    const mats = Array.isArray(child.material) ? child.material : [child.material];
-                    mats.forEach((mat) => {
-                        if (mat && !disposed.has(mat)) {
-                            disposed.add(mat);
-                            if (mat.map) mat.map.dispose?.();
-                            if (mat.alphaMap && mat.alphaMap !== mat.map) mat.alphaMap.dispose?.();
-                            mat.dispose?.();
-                        }
-                    });
-                }
-            });
-            scene.remove(orbitLogoGroup);
-            orbitLogoGroup = null;
-            orbitLogoMeshes = [];
-            orbitLogoLoaded = false;
-        }
-
-        function buildOrbitLogo(texture) {
-            disposeOrbitLogo();
-
-            texture.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
-            texture.wrapS = THREE.ClampToEdgeWrapping;
-            texture.wrapT = THREE.ClampToEdgeWrapping;
-            texture.minFilter = THREE.LinearMipmapLinearFilter;
-            texture.magFilter = THREE.LinearFilter;
-            if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
-            texture.needsUpdate = true;
-
-            orbitLogoGroup = new THREE.Group();
-            orbitLogoGroup.rotation.x = ORBIT_TILT_X;
-            orbitLogoGroup.rotation.z = ORBIT_TILT_Z;
-            scene.add(orbitLogoGroup);
-
-            const depthStep = ORBIT_LOGO_DEPTH / ORBIT_LOGO_DEPTH_LAYERS;
-            const shadowMaterial = new THREE.MeshPhysicalMaterial({
-                color: 0x11151a,
-                transparent: true,
-                opacity: 0.96,
-                alphaMap: texture,
-                side: THREE.DoubleSide,
-                metalness: 0.68,
-                roughness: 0.40,
-                clearcoat: 0.45,
-                clearcoatRoughness: 0.30,
-                envMap: logoEnvironmentMap,
-                envMapIntensity: 0.78,
-                depthWrite: false,
-                alphaTest: 0.14
-            });
-
-            for (let i = 0; i < ORBIT_LOGO_DEPTH_LAYERS; i++) {
-                const shellRadius = ORBIT_LOGO_RADIUS - ORBIT_LOGO_DEPTH + depthStep * i;
-                const shellGeom = new THREE.CylinderGeometry(
-                    shellRadius,
-                    shellRadius,
-                    ORBIT_LOGO_HEIGHT,
-                    ORBIT_LOGO_RADIAL_SEGMENTS,
-                    1,
-                    true,
-                    -ORBIT_LOGO_ARC / 2,
-                    ORBIT_LOGO_ARC
-                );
-                const shell = new THREE.Mesh(shellGeom, shadowMaterial.clone());
-                shell.rotation.y = Math.PI;
-                shell.renderOrder = 2 + i;
-                orbitLogoGroup.add(shell);
-                orbitLogoMeshes.push(shell);
+            const depths = [];
+            for (let d = 0; d < ORBIT_DEPTH_LAYERS; d++) {
+                const depth = document.createElement('div');
+                depth.className = 'orbit-logo-depth' + (d >= 4 ? ' depth-extra' : '');
+                applyLogoArtwork(depth, index);
+                depth.style.zIndex = String(d + 1);
+                slice.appendChild(depth);
+                depths.push(depth);
             }
 
-            const faceMaterial = new THREE.MeshPhysicalMaterial({
-                color: 0xffffff,
-                map: texture,
-                alphaMap: texture,
-                transparent: true,
-                side: THREE.DoubleSide,
-                metalness: 0.88,
-                roughness: 0.18,
-                clearcoat: 1.0,
-                clearcoatRoughness: 0.10,
-                envMap: logoEnvironmentMap,
-                envMapIntensity: 1.28,
-                reflectivity: 1,
-                transmission: 0,
-                depthWrite: false,
-                alphaTest: 0.16
-            });
-            const faceGeom = new THREE.CylinderGeometry(
-                ORBIT_LOGO_RADIUS,
-                ORBIT_LOGO_RADIUS,
-                ORBIT_LOGO_HEIGHT,
-                ORBIT_LOGO_RADIAL_SEGMENTS,
-                1,
-                true,
-                -ORBIT_LOGO_ARC / 2,
-                ORBIT_LOGO_ARC
-            );
-            const faceMesh = new THREE.Mesh(faceGeom, faceMaterial);
-            faceMesh.rotation.y = Math.PI;
-            faceMesh.renderOrder = 40;
-            orbitLogoGroup.add(faceMesh);
-            orbitLogoMeshes.push(faceMesh);
+            const face = document.createElement('div');
+            face.className = 'orbit-logo-face';
+            applyLogoArtwork(face, index);
+            slice.appendChild(face);
 
-            const highlightGeom = new THREE.CylinderGeometry(
-                ORBIT_LOGO_RADIUS + 0.012,
-                ORBIT_LOGO_RADIUS + 0.012,
-                ORBIT_LOGO_HEIGHT * 1.004,
-                ORBIT_LOGO_RADIAL_SEGMENTS,
-                1,
-                true,
-                -ORBIT_LOGO_ARC / 2,
-                ORBIT_LOGO_ARC
-            );
-            const highlightMaterial = new THREE.MeshPhysicalMaterial({
-                color: 0xffffff,
-                map: texture,
-                alphaMap: texture,
-                transparent: true,
-                side: THREE.DoubleSide,
-                metalness: 1,
-                roughness: 0.06,
-                clearcoat: 1,
-                clearcoatRoughness: 0.04,
-                envMap: logoEnvironmentMap,
-                envMapIntensity: 1.65,
-                opacity: 0.52,
-                depthWrite: false,
-                alphaTest: 0.20,
-                blending: THREE.AdditiveBlending
-            });
-            const highlightMesh = new THREE.Mesh(highlightGeom, highlightMaterial);
-            highlightMesh.rotation.y = Math.PI;
-            highlightMesh.renderOrder = 41;
-            orbitLogoGroup.add(highlightMesh);
-            orbitLogoMeshes.push(highlightMesh);
+            const shine = document.createElement('div');
+            shine.className = 'orbit-logo-shine';
+            shine.style.webkitMaskImage = `url("${SP1DER_LOGO_URL}")`;
+            shine.style.maskImage = `url("${SP1DER_LOGO_URL}")`;
+            shine.style.webkitMaskSize = `${ORBIT_LOGO_SLICE_COUNT * 100}% 100%`;
+            shine.style.maskSize = `${ORBIT_LOGO_SLICE_COUNT * 100}% 100%`;
+            const bgPos = ORBIT_LOGO_SLICE_COUNT <= 1 ? 50 : (index / (ORBIT_LOGO_SLICE_COUNT - 1)) * 100;
+            shine.style.webkitMaskPosition = `${bgPos}% 50%`;
+            shine.style.maskPosition = `${bgPos}% 50%`;
+            slice.appendChild(shine);
 
-            orbitLogoLoaded = true;
+            orbitLogoBack.appendChild(slice);
+            const item = { slice, depths, face, shine, index };
+            orbitLogoSlices.push(item);
         }
 
-        function loadOrbitLogoTexture(urls, index = 0) {
-            if (index >= urls.length) {
-                orbitLogoLoaded = false;
-                console.warn('SP1DER PNG texture could not be loaded from any source.');
-                return;
-            }
-            textureLoader.setCrossOrigin('anonymous');
-            textureLoader.load(
-                urls[index],
-                (texture) => buildOrbitLogo(texture),
-                undefined,
-                () => loadOrbitLogoTexture(urls, index + 1)
-            );
+        for (let i = 0; i < ORBIT_LOGO_SLICE_COUNT; i++) makeLogoSlice(i);
+
+        // Direct <img> preload = the same reliable path that made v41 visible.
+        const orbitLogoPreload = new Image();
+        orbitLogoPreload.decoding = 'async';
+        orbitLogoPreload.onload = () => {
+            orbitLogoImageReady = true;
+            orbitLogoSlices.forEach(({ slice }) => { slice.style.visibility = 'visible'; });
+        };
+        orbitLogoPreload.onerror = () => {
+            orbitLogoImageReady = false;
+            console.warn('SP1DER Hızlıresim PNG could not be loaded:', SP1DER_LOGO_URL);
+        };
+        orbitLogoSlices.forEach(({ slice }) => { slice.style.visibility = 'hidden'; });
+        orbitLogoPreload.src = SP1DER_LOGO_URL;
+
+        const orbitPlaneEuler = new THREE.Euler(ORBIT_TILT_X, 0, ORBIT_TILT_Z, 'XYZ');
+        const orbitUp = new THREE.Vector3(0, 1, 0).applyEuler(orbitPlaneEuler).normalize();
+        const tmpProject = new THREE.Vector3();
+        const globeCenterWorld = new THREE.Vector3(0, 0, 0);
+        const tmpLightWorld = SHARED_LIGHT_POSITION.clone();
+
+        function projectWorldToLogoPixels(world, width, height) {
+            tmpProject.copy(world).project(camera);
+            return {
+                x: (tmpProject.x * 0.5 + 0.5) * width,
+                y: (-tmpProject.y * 0.5 + 0.5) * height
+            };
         }
-        loadOrbitLogoTexture(SP1DER_LOGO_TEXTURES);
+
+        function orbitalPoint(theta, y = 0, radius = ORBIT_LOGO_RADIUS) {
+            const point = new THREE.Vector3(
+                Math.sin(theta) * radius,
+                y,
+                Math.cos(theta) * radius
+            );
+            point.applyEuler(orbitPlaneEuler);
+            return point;
+        }
+
+        function smoothStep(edge0, edge1, x) {
+            const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0 || 1)));
+            return t * t * (3 - 2 * t);
+        }
 
         function updateOrbitLogo(deltaTime) {
-            if (!orbitLogoLoaded || !orbitLogoGroup) return;
-            const speed = isPlayingState ? 0.30 : 0.17;
-            orbitLogoAngle = (orbitLogoAngle + speed * deltaTime) % (Math.PI * 2);
-            orbitLogoGroup.rotation.y = orbitLogoAngle;
-            orbitLogoGroup.rotation.x = ORBIT_TILT_X + Math.sin(orbitLogoAngle * 0.55) * 0.015;
-            orbitLogoGroup.rotation.z = ORBIT_TILT_Z + Math.cos(orbitLogoAngle * 0.45) * 0.012;
+            if (!orbitLogoImageReady) return;
+            const width = globeContainer.clientWidth;
+            const height = globeContainer.clientHeight;
+            if (!width || !height) return;
 
-            const subtlePitch = -0.03 + Math.cos(orbitLogoAngle * 0.8) * 0.015;
-            for (const mesh of orbitLogoMeshes) {
-                mesh.rotation.x = subtlePitch;
+            const speed = isPlayingState ? 0.34 : 0.19;
+            orbitLogoAngle = (orbitLogoAngle + speed * deltaTime) % (Math.PI * 2);
+            camera.updateMatrixWorld();
+
+            const centerScreen = projectWorldToLogoPixels(globeCenterWorld, width, height);
+            const lightScreen = projectWorldToLogoPixels(tmpLightWorld, width, height);
+            const halfStep = ORBIT_LOGO_ARC / ORBIT_LOGO_SLICE_COUNT * 0.58;
+            const halfHeight = ORBIT_LOGO_HEIGHT * 0.5;
+            const centerCameraZ = globeCenterWorld.clone().applyMatrix4(camera.matrixWorldInverse).z;
+
+            for (const item of orbitLogoSlices) {
+                const u = ORBIT_LOGO_SLICE_COUNT <= 1 ? 0.5 : item.index / (ORBIT_LOGO_SLICE_COUNT - 1);
+                const localTheta = (u - 0.5) * ORBIT_LOGO_ARC;
+                const theta = orbitLogoAngle + localTheta;
+
+                const center = orbitalPoint(theta, 0);
+                const left = orbitalPoint(theta - halfStep, 0);
+                const right = orbitalPoint(theta + halfStep, 0);
+                const top = center.clone().addScaledVector(orbitUp, halfHeight);
+                const bottom = center.clone().addScaledVector(orbitUp, -halfHeight);
+
+                const pc = projectWorldToLogoPixels(center, width, height);
+                const pl = projectWorldToLogoPixels(left, width, height);
+                const pr = projectWorldToLogoPixels(right, width, height);
+                const pt = projectWorldToLogoPixels(top, width, height);
+                const pb = projectWorldToLogoPixels(bottom, width, height);
+
+                // 2.2px overlap hides anti-aliased seams between neighboring strips.
+                const sliceWidth = Math.max(2.2, Math.hypot(pr.x - pl.x, pr.y - pl.y) * 1.20 + 2.2);
+                const sliceHeight = Math.max(12, Math.hypot(pb.x - pt.x, pb.y - pt.y) * 1.018 + 1.2);
+                const verticalAngle = Math.atan2(pb.y - pt.y, pb.x - pt.x) * 180 / Math.PI - 90;
+
+                item.slice.style.width = `${sliceWidth.toFixed(2)}px`;
+                item.slice.style.height = `${sliceHeight.toFixed(2)}px`;
+                item.slice.style.transform = `translate3d(${(pc.x - sliceWidth / 2).toFixed(2)}px, ${(pc.y - sliceHeight / 2).toFixed(2)}px, 0) rotate(${verticalAngle.toFixed(3)}deg)`;
+
+                // Each narrow piece moves through the globe independently, so the logo is
+                // occluded continuously rather than suddenly switching as one flat image.
+                const cameraZ = center.clone().applyMatrix4(camera.matrixWorldInverse).z;
+                const targetLayer = cameraZ > centerCameraZ ? orbitLogoFront : orbitLogoBack;
+                if (item.slice.parentNode !== targetLayer) targetLayer.appendChild(item.slice);
+
+                // Exact same light point as Earth: diffuse and specular are derived from
+                // SHARED_LIGHT_POSITION, never from a front/back brightness toggle.
+                const normal = center.clone().normalize();
+                const lightDir = SHARED_LIGHT_POSITION.clone().sub(center).normalize();
+                const viewDir = camera.position.clone().sub(center).normalize();
+                if (normal.dot(viewDir) < 0) normal.multiplyScalar(-1);
+                const diffuse = Math.max(0, normal.dot(lightDir));
+                const halfVector = lightDir.clone().add(viewDir).normalize();
+                const specular = Math.pow(Math.max(0, normal.dot(halfVector)), 18);
+                const grazing = 1 - Math.min(1, Math.abs(normal.dot(viewDir)));
+                const brightness = 0.72 + diffuse * 0.42 + specular * 0.25;
+
+                item.face.style.filter = `brightness(${brightness.toFixed(3)}) contrast(1.10) saturate(.96) drop-shadow(0 0 ${(2.2 + specular * 8).toFixed(1)}px rgba(214,231,250,${(0.09 + specular * 0.34).toFixed(3)}))`;
+
+                // Reflection forms one broad continuous highlight band, not one highlight
+                // per strip. The specular term is from the same point light used by Earth.
+                const broadSpec = Math.min(1, specular * 1.18 + diffuse * 0.10 + grazing * 0.06);
+                item.shine.style.opacity = (0.025 + broadSpec * 0.62).toFixed(3);
+                item.shine.style.filter = `blur(${(0.15 + (1 - broadSpec) * 0.35).toFixed(2)}px)`;
+
+                // Thick extrusion goes AWAY from the shared light's screen position. Multiple
+                // tightly stacked copies merge into one solid 3D edge instead of visible lines.
+                let dx = pc.x - lightScreen.x;
+                let dy = pc.y - lightScreen.y;
+                let len = Math.hypot(dx, dy);
+                if (len < 1) {
+                    dx = pc.x - centerScreen.x;
+                    dy = pc.y - centerScreen.y;
+                    len = Math.hypot(dx, dy) || 1;
+                }
+                const ux = dx / len;
+                const uy = dy / len;
+                const maxDepthPx = 7.2 + grazing * 2.8;
+                item.depths.forEach((depthEl, depthIndex) => {
+                    const t = (depthIndex + 1) / item.depths.length;
+                    const depth = maxDepthPx * t;
+                    depthEl.style.transform = `translate(${(ux * depth).toFixed(2)}px, ${(uy * depth).toFixed(2)}px)`;
+                    depthEl.style.opacity = (0.94 - t * 0.18).toFixed(3);
+                    depthEl.style.filter = `brightness(${(0.12 + diffuse * 0.18 + specular * 0.10).toFixed(3)}) saturate(.72) contrast(1.32)`;
+                });
             }
         }
 
@@ -2271,7 +2253,7 @@
         
         if ('serviceWorker' in navigator && location.protocol !== 'file:') {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=42', { updateViaCache: 'none' })
+                navigator.serviceWorker.register('./sw.js?v=43', { updateViaCache: 'none' })
                     .then((registration) => registration.update())
                     .catch((err) => { console.warn('Service worker registration failed:', err); });
             });
